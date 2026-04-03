@@ -2,6 +2,8 @@ const state = {
   seed: null,
   frames: [],
   analyses: [],
+  maxFrameHistory: 300,
+  maxAnalysisHistory: 300,
   summary: null,
   portfolio: null,
   cameraHealth: null,
@@ -13,6 +15,9 @@ const state = {
   cameraStream: null,
   cameraTimer: null,
   previousFrameBase64: null,
+  evidenceSnapshots: [],
+  maxEvidenceSnapshots: 9,
+  lastEvidenceAt: 0,
 };
 
 const statusText = document.getElementById("statusText");
@@ -40,6 +45,7 @@ const startCameraBtn = document.getElementById("startCameraBtn");
 const stopCameraBtn = document.getElementById("stopCameraBtn");
 
 const cameraVideo = document.getElementById("cameraVideo");
+const trackingOverlay = document.getElementById("trackingOverlay");
 const captureCanvas = document.getElementById("captureCanvas");
 const cameraIdInput = document.getElementById("cameraIdInput");
 const siteAreaInput = document.getElementById("siteAreaInput");
@@ -48,10 +54,24 @@ const tasksPlannedInput = document.getElementById("tasksPlannedInput");
 const tasksCompletedInput = document.getElementById("tasksCompletedInput");
 const captureIntervalInput = document.getElementById("captureIntervalInput");
 const cameraDeviceSelect = document.getElementById("cameraDeviceSelect");
+const singlePersonModeInput = document.getElementById("singlePersonModeInput");
 const refreshDevicesBtn = document.getElementById("refreshDevicesBtn");
+const resetLiveBtn = document.getElementById("resetLiveBtn");
 const uploadFrameInput = document.getElementById("uploadFrameInput");
 const analyzeUploadBtn = document.getElementById("analyzeUploadBtn");
 const cameraDebugText = document.getElementById("cameraDebugText");
+const evidenceStrip = document.getElementById("evidenceStrip");
+const motionStatePill = document.getElementById("motionStatePill");
+const motionScoreLabel = document.getElementById("motionScoreLabel");
+const trackedWorkersLabel = document.getElementById("trackedWorkersLabel");
+const eyeIdleLabel = document.getElementById("eyeIdleLabel");
+const handBreakLabel = document.getElementById("handBreakLabel");
+const dataModeLabel = document.getElementById("dataModeLabel");
+const dataSourceLabel = document.getElementById("dataSourceLabel");
+const mockFlagLabel = document.getElementById("mockFlagLabel");
+const activityIndexLabel = document.getElementById("activityIndexLabel");
+const evidenceScoreLabel = document.getElementById("evidenceScoreLabel");
+const calibrationLabel = document.getElementById("calibrationLabel");
 
 function setStatus(text, tone = "ok") {
   statusText.textContent = text;
@@ -74,6 +94,333 @@ function lockCameraButtons(running) {
 
 function setCameraDebug(text) {
   cameraDebugText.textContent = text;
+}
+
+function setMotionPillState(isActive) {
+  if (!motionStatePill) {
+    return;
+  }
+
+  motionStatePill.classList.remove("is-active", "is-idle");
+  motionStatePill.classList.add(isActive ? "is-active" : "is-idle");
+}
+
+function updateLiveMovement(analysis, motionScore) {
+  if (!motionStatePill || !motionScoreLabel || !trackedWorkersLabel) {
+    return;
+  }
+
+  if (!analysis) {
+    motionStatePill.textContent = "Motion: idle";
+    motionScoreLabel.textContent = "Motion score: 0.0%";
+    trackedWorkersLabel.textContent = "Tracked workers: 0/0 moving";
+    setMotionPillState(false);
+    return;
+  }
+
+  const normalizedMotion = Number.isFinite(motionScore) ? Math.max(0, Math.min(1, motionScore)) : 0;
+  const motionPct = (normalizedMotion * 100).toFixed(1);
+  const movingWorkers = Number(analysis.active_workers || 0);
+  const totalWorkers = Number(analysis.worker_count || 0);
+  const hasMovement = movingWorkers > 0 || normalizedMotion >= 0.02;
+
+  motionStatePill.textContent = hasMovement ? "Motion: active" : "Motion: idle";
+  motionScoreLabel.textContent = `Motion score: ${motionPct}%`;
+  trackedWorkersLabel.textContent = `Tracked workers: ${movingWorkers}/${totalWorkers} moving`;
+  setMotionPillState(hasMovement);
+}
+
+function updateEyeIdleBadge(result) {
+  if (!eyeIdleLabel) {
+    return;
+  }
+
+  const eyeIdleWorkers = result && Number.isFinite(result.eye_idle_workers)
+    ? Number(result.eye_idle_workers)
+    : 0;
+
+  eyeIdleLabel.textContent = `Eye idle workers: ${eyeIdleWorkers}`;
+  setPillTone(eyeIdleLabel, eyeIdleWorkers > 0 ? "is-warn" : "is-idle");
+}
+
+function updateHandBreakBadge(result) {
+  if (!handBreakLabel) {
+    return;
+  }
+
+  const breakWorkers = result && Number.isFinite(result.hand_break_workers)
+    ? Number(result.hand_break_workers)
+    : 0;
+
+  handBreakLabel.textContent = `Keyboard break workers: ${breakWorkers}`;
+  setPillTone(handBreakLabel, breakWorkers > 0 ? "is-warn" : "is-idle");
+}
+
+function setPillTone(pill, tone) {
+  if (!pill) {
+    return;
+  }
+
+  pill.classList.remove("is-active", "is-idle", "is-warn");
+  pill.classList.add(tone);
+}
+
+function updateEvidenceBadges(result) {
+  if (
+    !dataModeLabel
+    || !dataSourceLabel
+    || !mockFlagLabel
+    || !activityIndexLabel
+    || !evidenceScoreLabel
+    || !calibrationLabel
+  ) {
+    return;
+  }
+
+  if (!result) {
+    dataModeLabel.textContent = "Data mode: live-calibrated";
+    dataSourceLabel.textContent = "Source: live-camera";
+    mockFlagLabel.textContent = "Mock: no";
+    activityIndexLabel.textContent = "Activity index: 0.0%";
+    evidenceScoreLabel.textContent = "Evidence score: 0.0%";
+    calibrationLabel.textContent = "Calibration: warming up";
+    setPillTone(dataModeLabel, "is-idle");
+    setPillTone(dataSourceLabel, "is-active");
+    setPillTone(mockFlagLabel, "is-active");
+    setPillTone(activityIndexLabel, "is-idle");
+    setPillTone(evidenceScoreLabel, "is-idle");
+    setPillTone(calibrationLabel, "is-idle");
+    return;
+  }
+
+  const mode = String(result.data_mode || "live-calibrated");
+  const source = String(result.data_source || "live-camera");
+  const isMock = Boolean(result.is_mock);
+  const activityIndex = Number.isFinite(result.activity_index_pct) ? result.activity_index_pct : 0;
+  const evidence = Number.isFinite(result.evidence_score) ? result.evidence_score : 0;
+  const calibrationReady = Boolean(result.calibration_ready);
+  const remainingFrames = Number(result.calibration_frames_remaining || 0);
+
+  dataModeLabel.textContent = `Data mode: ${mode}`;
+  dataSourceLabel.textContent = `Source: ${source}`;
+  mockFlagLabel.textContent = `Mock: ${isMock ? "yes" : "no"}`;
+  activityIndexLabel.textContent = `Activity index: ${activityIndex.toFixed(1)}%`;
+  evidenceScoreLabel.textContent = `Evidence score: ${evidence.toFixed(1)}%`;
+  calibrationLabel.textContent = calibrationReady
+    ? "Calibration: ready"
+    : `Calibration: ${remainingFrames} frame(s) left`;
+
+  setPillTone(dataModeLabel, mode === "manual-assisted" ? "is-warn" : "is-active");
+  setPillTone(dataSourceLabel, source === "live-camera" ? "is-active" : "is-warn");
+  setPillTone(mockFlagLabel, isMock ? "is-warn" : "is-active");
+  setPillTone(activityIndexLabel, activityIndex >= 35 ? "is-active" : "is-idle");
+  setPillTone(evidenceScoreLabel, evidence >= 65 ? "is-active" : evidence >= 45 ? "is-idle" : "is-warn");
+  setPillTone(calibrationLabel, calibrationReady ? "is-active" : "is-idle");
+}
+
+function renderEvidenceStrip() {
+  if (!evidenceStrip) {
+    return;
+  }
+
+  if (!state.evidenceSnapshots.length) {
+    evidenceStrip.innerHTML = '<div class="placeholder">No evidence yet. Start camera to collect snapshots.</div>';
+    return;
+  }
+
+  evidenceStrip.innerHTML = state.evidenceSnapshots
+    .map((item) => `<article class="evidence-card">
+      <img src="${item.image}" alt="Evidence snapshot" />
+      <div class="evidence-meta">
+        <strong>${item.cameraId}</strong>
+        <span>${item.timeLabel}</span>
+        <span>Source: ${item.source} | Mock: ${item.mock}</span>
+        <span>Evidence: ${item.evidence}% | Activity: ${item.activity}%</span>
+        <span>Detector: ${item.detector}</span>
+      </div>
+    </article>`)
+    .join("");
+}
+
+function maybeCaptureEvidenceSnapshot(result, frameImageDataUrl) {
+  if (!result || !frameImageDataUrl) {
+    return;
+  }
+
+  const workerCount = Number(result.analysis?.worker_count || 0);
+  const evidence = Number.isFinite(result.evidence_score) ? result.evidence_score : 0;
+  const now = Date.now();
+  if (workerCount <= 0 || evidence < 40) {
+    return;
+  }
+  if ((now - state.lastEvidenceAt) < 2200) {
+    return;
+  }
+
+  state.lastEvidenceAt = now;
+  state.evidenceSnapshots.unshift({
+    image: frameImageDataUrl,
+    cameraId: result.frame?.camera_id || "CAM-LIVE",
+    timeLabel: new Date(result.frame?.timestamp || now).toLocaleTimeString(),
+    source: String(result.data_source || "live-camera"),
+    mock: result.is_mock ? "yes" : "no",
+    evidence: evidence.toFixed(1),
+    activity: (Number(result.activity_index_pct || 0)).toFixed(1),
+    detector: String(result.detector || "unknown"),
+  });
+
+  if (state.evidenceSnapshots.length > state.maxEvidenceSnapshots) {
+    state.evidenceSnapshots.splice(state.maxEvidenceSnapshots);
+  }
+
+  renderEvidenceStrip();
+}
+
+function syncTrackingOverlaySize() {
+  if (!trackingOverlay) {
+    return;
+  }
+
+  const rect = cameraVideo.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const targetWidth = Math.max(1, Math.round(rect.width * dpr));
+  const targetHeight = Math.max(1, Math.round(rect.height * dpr));
+
+  if (trackingOverlay.width !== targetWidth || trackingOverlay.height !== targetHeight) {
+    trackingOverlay.width = targetWidth;
+    trackingOverlay.height = targetHeight;
+  }
+}
+
+function clearTrackingOverlay() {
+  if (!trackingOverlay) {
+    return;
+  }
+
+  const context = trackingOverlay.getContext("2d");
+  context.clearRect(0, 0, trackingOverlay.width, trackingOverlay.height);
+}
+
+function detectionColor(detection) {
+  if (detection.category === "worker") {
+    return detection.moving ? "#21b594" : "#c68625";
+  }
+  if (detection.category === "no_helmet") {
+    return "#d04d26";
+  }
+  if (detection.category === "phone_use") {
+    return "#8d4bc9";
+  }
+  if (detection.category === "restricted_zone_entry") {
+    return "#b43863";
+  }
+  if (detection.category === "helmet") {
+    return "#2e73c3";
+  }
+  if (detection.category === "vehicle") {
+    return "#475661";
+  }
+
+  return "#2e73c3";
+}
+
+function drawTrackingOverlay(frame) {
+  if (!trackingOverlay || !frame || !Array.isArray(frame.detections)) {
+    clearTrackingOverlay();
+    return;
+  }
+
+  syncTrackingOverlaySize();
+
+  const context = trackingOverlay.getContext("2d");
+  const overlayWidth = trackingOverlay.width;
+  const overlayHeight = trackingOverlay.height;
+  context.clearRect(0, 0, overlayWidth, overlayHeight);
+
+  if (!overlayWidth || !overlayHeight) {
+    return;
+  }
+
+  const sourceWidth = cameraVideo.videoWidth || overlayWidth;
+  const sourceHeight = cameraVideo.videoHeight || overlayHeight;
+  if (!sourceWidth || !sourceHeight) {
+    return;
+  }
+
+  const scale = Math.min(overlayWidth / sourceWidth, overlayHeight / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const offsetX = (overlayWidth - drawWidth) / 2;
+  const offsetY = (overlayHeight - drawHeight) / 2;
+  const fontSize = Math.max(14, Math.round(12 * (window.devicePixelRatio || 1)));
+
+  frame.detections.forEach((detection, index) => {
+    const bbox = detection.bbox || {};
+    const x = Number(bbox.x || 0);
+    const y = Number(bbox.y || 0);
+    const w = Number(bbox.w || 0);
+    const h = Number(bbox.h || 0);
+    if (w <= 0 || h <= 0) {
+      return;
+    }
+
+    const left = offsetX + x * drawWidth;
+    const top = offsetY + y * drawHeight;
+    const boxWidth = w * drawWidth;
+    const boxHeight = h * drawHeight;
+    const color = detectionColor(detection);
+
+    context.strokeStyle = color;
+    context.lineWidth = Math.max(2, Math.round(2 * (window.devicePixelRatio || 1)));
+    context.strokeRect(left, top, boxWidth, boxHeight);
+
+    const workerToken = detection.track_id || `W-${index + 1}`;
+    let tag = detection.category === "worker"
+      ? `${detection.moving ? "moving" : "idle"} ${workerToken}`
+      : detection.category.replaceAll("_", " ");
+
+    if (detection.category === "worker") {
+      if (detection.face_detected === true) {
+        if (detection.eyes_closed === true) {
+          const seconds = Number.isFinite(detection.eyes_closed_seconds)
+            ? Number(detection.eyes_closed_seconds).toFixed(1)
+            : "0.0";
+          tag += ` eyes-closed ${seconds}s`;
+        } else if (detection.eyes_closed === false) {
+          tag += " eyes-open";
+        }
+      } else {
+        tag += " face-unseen";
+      }
+
+      if (detection.hand_on_keyboard === true) {
+        tag += " kb-on";
+      } else if (detection.hand_on_keyboard === false) {
+        const breakSeconds = Number.isFinite(detection.hand_off_keyboard_seconds)
+          ? Number(detection.hand_off_keyboard_seconds).toFixed(1)
+          : "0.0";
+        tag += ` kb-off ${breakSeconds}s`;
+      }
+    }
+    const confidence = Number.isFinite(detection.confidence)
+      ? `${Math.round(detection.confidence * 100)}%`
+      : "";
+    const label = confidence ? `${tag} ${confidence}` : tag;
+
+    context.font = `${fontSize}px "IBM Plex Mono", monospace`;
+    const textWidth = context.measureText(label).width;
+    const labelHeight = Math.max(18, Math.round(16 * (window.devicePixelRatio || 1)));
+    const labelTop = Math.max(0, top - labelHeight - 2);
+
+    context.fillStyle = color;
+    context.fillRect(left, labelTop, textWidth + 10, labelHeight);
+    context.fillStyle = "#ffffff";
+    context.fillText(label, left + 5, labelTop + labelHeight - 6);
+  });
 }
 
 function escapeHtml(text) {
@@ -210,6 +557,19 @@ function summarizeAnalyses(analyses) {
   };
 }
 
+function latestAnalysesByCamera(analyses) {
+  if (!analyses || analyses.length === 0) {
+    return [];
+  }
+
+  const latestMap = new Map();
+  analyses.forEach((analysis) => {
+    latestMap.set(analysis.camera_id, analysis);
+  });
+
+  return [...latestMap.values()].sort((a, b) => a.camera_id.localeCompare(b.camera_id));
+}
+
 function renderSummary(summary) {
   if (!summary) {
     framesProcessed.textContent = "-";
@@ -235,7 +595,9 @@ function renderAnalyses(analyses) {
     return;
   }
 
-  cameraTableBody.innerHTML = analyses
+  const rows = latestAnalysesByCamera(analyses);
+
+  cameraTableBody.innerHTML = rows
     .map((analysis) => {
       const alerts = analysis.alerts.length
         ? analysis.alerts.map((alert) => `<span class="alert-pill">${alert}</span>`).join("")
@@ -447,21 +809,18 @@ function captureFrameBase64() {
 }
 
 function upsertFrameAndAnalysis(frame, analysis) {
-  const frameIndex = state.frames.findIndex((item) => item.camera_id === frame.camera_id);
-  if (frameIndex >= 0) {
-    state.frames[frameIndex] = frame;
-  } else {
-    state.frames.push(frame);
+  state.frames.push(frame);
+  if (state.frames.length > state.maxFrameHistory) {
+    state.frames.splice(0, state.frames.length - state.maxFrameHistory);
   }
 
-  const analysisIndex = state.analyses.findIndex((item) => item.camera_id === analysis.camera_id);
-  if (analysisIndex >= 0) {
-    state.analyses[analysisIndex] = analysis;
-  } else {
-    state.analyses.push(analysis);
+  state.analyses.push(analysis);
+  if (state.analyses.length > state.maxAnalysisHistory) {
+    state.analyses.splice(0, state.analyses.length - state.maxAnalysisHistory);
   }
 
-  state.summary = summarizeAnalyses(state.analyses);
+  const summaryWindow = state.analyses.slice(-90);
+  state.summary = summarizeAnalyses(summaryWindow);
 }
 
 async function analyzeSingleCameraFrame() {
@@ -479,6 +838,7 @@ async function analyzeSingleCameraFrame() {
       expected_workers: Number(expectedWorkersInput.value || 0),
       tasks_planned: Number(tasksPlannedInput.value || 0),
       tasks_completed: Number(tasksCompletedInput.value || 0),
+      single_person_mode: Boolean(singlePersonModeInput && singlePersonModeInput.checked),
     };
 
     const response = await fetch("/vision/analyze-camera-frame", {
@@ -495,6 +855,12 @@ async function analyzeSingleCameraFrame() {
     state.previousFrameBase64 = imageBase64;
 
     upsertFrameAndAnalysis(result.frame, result.analysis);
+    drawTrackingOverlay(result.frame);
+    updateLiveMovement(result.analysis, result.motion_score);
+    updateEvidenceBadges(result);
+    updateEyeIdleBadge(result);
+    updateHandBreakBadge(result);
+    maybeCaptureEvidenceSnapshot(result, imageBase64);
     renderAnalyses(state.analyses);
     renderSummary(state.summary);
 
@@ -502,8 +868,11 @@ async function analyzeSingleCameraFrame() {
     const classesLabel = result.classes_detected && result.classes_detected.length
       ? result.classes_detected.join(",")
       : "none";
+    const calibrationLabel = result.calibration_ready
+      ? "ready"
+      : `${result.calibration_frames_remaining}f`;
     setStatus(
-      `Live ${result.frame.camera_id}: ${result.analysis.worker_count} workers, util ${result.analysis.utilization_pct.toFixed(1)}%, detector ${result.detector}, safety ${result.safety_detections}, classes ${classesLabel}, motion ${(result.motion_score * 100).toFixed(1)}%.`,
+      `Live ${result.frame.camera_id}: source ${result.data_source}, mock ${result.is_mock ? "yes" : "no"}, single-mode ${result.single_person_mode_applied ? "on" : "off"}, eye-idle ${result.eye_idle_workers}, hand-break ${result.hand_break_workers}, ${result.analysis.worker_count} workers, util ${result.analysis.utilization_pct.toFixed(1)}%, task progress ${result.analysis.progress_pct.toFixed(1)}%, activity ${result.activity_index_pct.toFixed(1)}%, mode ${result.data_mode}, evidence ${result.evidence_score.toFixed(1)}%, calibration ${calibrationLabel}, detector ${result.detector}, safety ${result.safety_detections}, classes ${classesLabel}, motion ${(result.motion_score * 100).toFixed(1)}%.`,
       tone,
     );
   } catch (error) {
@@ -534,6 +903,7 @@ async function analyzeUploadedFrame() {
       expected_workers: Number(expectedWorkersInput.value || 0),
       tasks_planned: Number(tasksPlannedInput.value || 0),
       tasks_completed: Number(tasksCompletedInput.value || 0),
+      single_person_mode: Boolean(singlePersonModeInput && singlePersonModeInput.checked),
     };
 
     const response = await fetch("/vision/analyze-camera-frame", {
@@ -548,6 +918,12 @@ async function analyzeUploadedFrame() {
 
     const result = await response.json();
     upsertFrameAndAnalysis(result.frame, result.analysis);
+    drawTrackingOverlay(result.frame);
+    updateLiveMovement(result.analysis, result.motion_score);
+    updateEvidenceBadges(result);
+    updateEyeIdleBadge(result);
+    updateHandBreakBadge(result);
+    maybeCaptureEvidenceSnapshot(result, String(dataUrl));
     renderAnalyses(state.analyses);
     renderSummary(state.summary);
 
@@ -555,11 +931,43 @@ async function analyzeUploadedFrame() {
       ? result.classes_detected.join(",")
       : "none";
     setStatus(
-      `Uploaded frame analyzed: ${result.analysis.worker_count} workers, detector ${result.detector}, classes ${classesLabel}.`,
+      `Uploaded frame analyzed: source ${result.data_source}, mock ${result.is_mock ? "yes" : "no"}, single-mode ${result.single_person_mode_applied ? "on" : "off"}, eye-idle ${result.eye_idle_workers}, hand-break ${result.hand_break_workers}, ${result.analysis.worker_count} workers, activity ${result.activity_index_pct.toFixed(1)}%, mode ${result.data_mode}, evidence ${result.evidence_score.toFixed(1)}%, detector ${result.detector}, classes ${classesLabel}.`,
       result.analysis.safety_violations > 0 ? "warn" : "ok",
     );
   } catch (error) {
     setStatus(`Uploaded frame analysis failed: ${error.message}`, "warn");
+  }
+}
+
+async function resetLiveBaseline(silent = false) {
+  const cameraId = cameraIdInput.value.trim() || "CAM-LIVE-01";
+
+  try {
+    const response = await fetch("/vision/reset-live-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ camera_id: cameraId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`reset failed (${response.status})`);
+    }
+
+    state.previousFrameBase64 = null;
+    state.evidenceSnapshots = [];
+    state.lastEvidenceAt = 0;
+    updateEvidenceBadges(null);
+    updateEyeIdleBadge(null);
+    updateHandBreakBadge(null);
+    renderEvidenceStrip();
+
+    if (!silent) {
+      setStatus(`Live baseline reset for ${cameraId}.`, "ok");
+    }
+  } catch (error) {
+    if (!silent) {
+      setStatus(`Could not reset live baseline: ${error.message}`, "warn");
+    }
   }
 }
 
@@ -580,6 +988,7 @@ async function startCameraAnalysis() {
 
   try {
     setStatus("Requesting camera permission...");
+    await resetLiveBaseline(true);
     const selectedDeviceId = cameraDeviceSelect.value;
     const stream = await requestCameraStream(selectedDeviceId);
 
@@ -587,6 +996,7 @@ async function startCameraAnalysis() {
     state.previousFrameBase64 = null;
     cameraVideo.srcObject = stream;
     await cameraVideo.play();
+    syncTrackingOverlaySize();
 
     const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack) {
@@ -625,6 +1035,10 @@ function stopCameraAnalysis() {
 
   cameraVideo.srcObject = null;
   state.previousFrameBase64 = null;
+  clearTrackingOverlay();
+  updateLiveMovement(null, 0);
+  updateEyeIdleBadge(null);
+  updateHandBreakBadge(null);
   lockCameraButtons(false);
   setStatus("Camera stopped.");
   setCameraDebug("Camera stopped. You can refresh devices and retry.");
@@ -649,6 +1063,8 @@ async function loadSeedFrames() {
     state.eventFeed = null;
     state.trends = null;
     state.selectedTrendCameraId = null;
+    state.evidenceSnapshots = [];
+    state.lastEvidenceAt = 0;
 
     renderAnalyses([]);
     renderSummary(null);
@@ -657,6 +1073,10 @@ async function loadSeedFrames() {
     renderCameraHealth(null);
     renderEventFeed(null);
     renderTrendTimeline(null);
+    updateEvidenceBadges(null);
+    updateEyeIdleBadge(null);
+    updateHandBreakBadge(null);
+    renderEvidenceStrip();
 
     setStatus(`Loaded ${state.frames.length} seed frames. Ready for analysis.`);
   } catch (error) {
@@ -840,6 +1260,9 @@ reportBtn.addEventListener("click", generateReport);
 startCameraBtn.addEventListener("click", startCameraAnalysis);
 stopCameraBtn.addEventListener("click", stopCameraAnalysis);
 refreshDevicesBtn.addEventListener("click", refreshCameraDevices);
+resetLiveBtn.addEventListener("click", () => {
+  void resetLiveBaseline(false);
+});
 analyzeUploadBtn.addEventListener("click", analyzeUploadedFrame);
 trendCameraSelect.addEventListener("change", () => {
   state.selectedTrendCameraId = trendCameraSelect.value;
@@ -847,6 +1270,13 @@ trendCameraSelect.addEventListener("change", () => {
 });
 
 window.addEventListener("beforeunload", stopCameraAnalysis);
+window.addEventListener("resize", syncTrackingOverlaySize);
+cameraVideo.addEventListener("loadedmetadata", syncTrackingOverlaySize);
 
-setStatus("Ready. Load seed frames to start.");
+setStatus("Ready. Start camera to run live evidence mode.");
+updateLiveMovement(null, 0);
+updateEvidenceBadges(null);
+updateEyeIdleBadge(null);
+updateHandBreakBadge(null);
+renderEvidenceStrip();
 refreshCameraDevices();

@@ -13,6 +13,8 @@ DetectionCategory = Literal[
     "vehicle",
 ]
 
+DataMode = Literal["live-calibrated", "manual-assisted"]
+
 
 class BoundingBox(BaseModel):
     x: float = Field(..., ge=0, le=1)
@@ -27,6 +29,12 @@ class Detection(BaseModel):
     bbox: BoundingBox
     zone: Optional[str] = None
     moving: bool = True
+    track_id: Optional[str] = Field(default=None, max_length=32)
+    face_detected: Optional[bool] = None
+    eyes_closed: Optional[bool] = None
+    eyes_closed_seconds: Optional[float] = Field(default=None, ge=0, le=600)
+    hand_on_keyboard: Optional[bool] = None
+    hand_off_keyboard_seconds: Optional[float] = Field(default=None, ge=0, le=600)
 
 
 class CameraFrame(BaseModel):
@@ -45,6 +53,7 @@ class FrameAnalysis(BaseModel):
     worker_count: int = 0
     active_workers: int = 0
     idle_workers: int = 0
+    keyboard_break_workers: int = 0
     utilization_pct: float = Field(default=0, ge=0, le=100)
     progress_pct: float = Field(default=0, ge=0, le=100)
     safety_violations: int = 0
@@ -99,15 +108,35 @@ class CameraImageRequest(BaseModel):
     expected_workers: int = Field(default=10, ge=0)
     tasks_planned: int = Field(default=10, ge=0)
     tasks_completed: int = Field(default=0, ge=0)
+    single_person_mode: bool = False
 
 
 class CameraImageAnalysisResponse(BaseModel):
     frame: CameraFrame
     analysis: FrameAnalysis
     detector: str
+    data_source: Literal["live-camera"] = "live-camera"
+    is_mock: bool = False
+    single_person_mode_applied: bool = False
+    eye_idle_workers: int = Field(default=0, ge=0)
+    hand_break_workers: int = Field(default=0, ge=0)
     motion_score: float = Field(default=0.0, ge=0, le=1)
     safety_detections: int = Field(default=0, ge=0)
     classes_detected: List[DetectionCategory] = Field(default_factory=list)
+    evidence_score: float = Field(default=0.0, ge=0, le=100)
+    activity_index_pct: float = Field(default=0.0, ge=0, le=100)
+    data_mode: DataMode = "live-calibrated"
+    calibration_ready: bool = False
+    calibration_frames_remaining: int = Field(default=0, ge=0)
+    calibrated_expected_workers: int = Field(default=0, ge=0)
+
+
+class ResetLiveSessionRequest(BaseModel):
+    camera_id: Optional[str] = None
+
+
+class ResetLiveSessionResponse(BaseModel):
+    reset_count: int = Field(default=0, ge=0)
 
 
 class ReportRequest(BaseModel):

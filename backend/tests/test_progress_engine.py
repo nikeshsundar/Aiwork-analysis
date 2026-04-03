@@ -68,6 +68,66 @@ def test_analyze_frame_counts_safety_violations() -> None:
     assert any("restricted" in alert for alert in analysis.alerts)
 
 
+def test_analyze_frame_marks_eye_closed_worker_as_idle() -> None:
+    frame = CameraFrame(
+        camera_id="CAM-EYE-IDLE",
+        timestamp=datetime.now(timezone.utc),
+        site_area="zone-c",
+        expected_workers=1,
+        tasks_planned=0,
+        tasks_completed=0,
+        detections=[
+            Detection(
+                category="worker",
+                confidence=0.92,
+                bbox=BoundingBox(x=0.2, y=0.1, w=0.25, h=0.4),
+                zone="zone-c",
+                moving=True,
+                face_detected=True,
+                eyes_closed=True,
+                eyes_closed_seconds=11.2,
+            ),
+        ],
+    )
+
+    analysis = analyze_frame(frame)
+
+    assert analysis.worker_count == 1
+    assert analysis.active_workers == 0
+    assert analysis.idle_workers == 1
+    assert any("eyes closed" in alert for alert in analysis.alerts)
+
+
+def test_analyze_frame_marks_hands_off_keyboard_worker_as_idle() -> None:
+    frame = CameraFrame(
+        camera_id="CAM-HAND-BREAK",
+        timestamp=datetime.now(timezone.utc),
+        site_area="zone-d",
+        expected_workers=1,
+        tasks_planned=0,
+        tasks_completed=0,
+        detections=[
+            Detection(
+                category="worker",
+                confidence=0.91,
+                bbox=BoundingBox(x=0.2, y=0.1, w=0.25, h=0.4),
+                zone="zone-d",
+                moving=True,
+                hand_on_keyboard=False,
+                hand_off_keyboard_seconds=12.0,
+            ),
+        ],
+    )
+
+    analysis = analyze_frame(frame)
+
+    assert analysis.worker_count == 1
+    assert analysis.active_workers == 0
+    assert analysis.idle_workers == 1
+    assert analysis.keyboard_break_workers == 1
+    assert any("hands off keyboard" in alert for alert in analysis.alerts)
+
+
 def test_aggregate_analyses_returns_averages() -> None:
     frame_a = CameraFrame(
         camera_id="CAM-A",

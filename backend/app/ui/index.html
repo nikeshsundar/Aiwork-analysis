@@ -20,8 +20,8 @@
       <section class="panel controls-panel">
         <h2>Operations</h2>
         <div class="button-grid">
-          <button id="loadSeedBtn">Load Seed Frames</button>
-          <button id="runMockBtn">Run Mock Vision Inference</button>
+          <button id="loadSeedBtn" class="secondary">Load Seed Frames (Demo Only)</button>
+          <button id="runMockBtn" class="secondary">Run Mock Vision Inference (Demo Only)</button>
           <button id="analyzeBtn">Analyze Progress</button>
           <button id="advancedAnalyticsBtn">Refresh Advanced Analytics</button>
           <button id="reportBtn" class="secondary">Generate Shift Report</button>
@@ -29,8 +29,25 @@
 
         <div class="camera-panel">
           <h3>Live Camera Analysis</h3>
-          <video id="cameraVideo" autoplay playsinline muted></video>
+          <div class="camera-video-stack">
+            <video id="cameraVideo" autoplay playsinline muted></video>
+            <canvas id="trackingOverlay" class="tracking-overlay"></canvas>
+          </div>
           <canvas id="captureCanvas" class="hidden-canvas"></canvas>
+
+          <div class="camera-live-stats">
+            <span id="motionStatePill" class="live-pill is-idle">Motion: idle</span>
+            <span id="motionScoreLabel" class="live-pill">Motion score: 0.0%</span>
+            <span id="trackedWorkersLabel" class="live-pill">Tracked workers: 0/0 moving</span>
+            <span id="eyeIdleLabel" class="live-pill">Eye idle workers: 0</span>
+            <span id="handBreakLabel" class="live-pill">Keyboard break workers: 0</span>
+            <span id="dataModeLabel" class="live-pill">Data mode: live-calibrated</span>
+            <span id="dataSourceLabel" class="live-pill">Source: live-camera</span>
+            <span id="mockFlagLabel" class="live-pill">Mock: no</span>
+            <span id="activityIndexLabel" class="live-pill">Activity index: 0.0%</span>
+            <span id="evidenceScoreLabel" class="live-pill">Evidence score: 0.0%</span>
+            <span id="calibrationLabel" class="live-pill is-idle">Calibration: warming up</span>
+          </div>
 
           <div class="camera-form">
             <label>
@@ -42,12 +59,12 @@
               <input id="siteAreaInput" type="text" value="live-zone" />
             </label>
             <label>
-              Expected Workers
-              <input id="expectedWorkersInput" type="number" min="0" value="10" />
+              Expected Workers (0 = auto)
+              <input id="expectedWorkersInput" type="number" min="0" value="0" />
             </label>
             <label>
-              Tasks Planned
-              <input id="tasksPlannedInput" type="number" min="0" value="12" />
+              Tasks Planned (0 = auto)
+              <input id="tasksPlannedInput" type="number" min="0" value="0" />
             </label>
             <label>
               Tasks Completed
@@ -55,7 +72,7 @@
             </label>
             <label>
               Interval (sec)
-              <input id="captureIntervalInput" type="number" min="1" max="10" value="3" />
+              <input id="captureIntervalInput" type="number" min="1" max="10" value="1" />
             </label>
             <label>
               Camera Device
@@ -63,11 +80,16 @@
                 <option value="__auto__">Auto-select</option>
               </select>
             </label>
+            <label class="camera-checkbox-label">
+              <input id="singlePersonModeInput" type="checkbox" checked />
+              Strict Single-Person Mode (selfie demo)
+            </label>
           </div>
 
           <div class="camera-actions">
             <button id="startCameraBtn">Start Camera</button>
             <button id="refreshDevicesBtn" class="secondary">Refresh Devices</button>
+            <button id="resetLiveBtn" class="secondary">Reset Live Baseline</button>
             <button id="stopCameraBtn" class="secondary" disabled>Stop Camera</button>
           </div>
 
@@ -80,6 +102,16 @@
           </div>
 
           <p id="cameraDebugText" class="camera-debug">Camera diagnostics will appear here.</p>
+
+          <div class="evidence-strip">
+            <div class="evidence-strip-head">
+              <h4>Live Evidence Strip</h4>
+              <span>Snapshots are captured from analyzed live frames</span>
+            </div>
+            <div id="evidenceStrip" class="evidence-strip-grid">
+              <div class="placeholder">No evidence yet. Start camera to collect snapshots.</div>
+            </div>
+          </div>
         </div>
 
         <p id="statusText" class="status">Ready.</p>
@@ -101,7 +133,7 @@
             <strong id="avgUtilization">-</strong>
           </div>
           <div class="metric">
-            <span class="metric-label">Progress</span>
+            <span class="metric-label">Task Progress</span>
             <strong id="avgProgress">-</strong>
           </div>
           <div class="metric">
@@ -124,7 +156,7 @@
                 <th>Camera</th>
                 <th>Workers</th>
                 <th>Utilization</th>
-                <th>Progress</th>
+                <th>Task Progress</th>
                 <th>Safety</th>
                 <th>Alerts</th>
               </tr>

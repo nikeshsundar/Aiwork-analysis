@@ -38,6 +38,14 @@ def _trend_direction(start_value: float, end_value: float, threshold: float = 6.
     return "stable"
 
 
+def _worker_is_idle(worker) -> bool:
+    if worker.eyes_closed and (worker.eyes_closed_seconds or 0.0) >= 10.0:
+        return True
+    if worker.hand_on_keyboard is False and (worker.hand_off_keyboard_seconds or 0.0) >= 10.0:
+        return True
+    return not worker.moving
+
+
 def analyze_frames(frames: List[CameraFrame]) -> List[FrameAnalysis]:
     return [analyze_frame(frame) for frame in frames]
 
@@ -60,8 +68,18 @@ def _group_by_camera(
 def analyze_frame(frame: CameraFrame) -> FrameAnalysis:
     workers = [detection for detection in frame.detections if detection.category == "worker"]
     worker_count = len(workers)
-    idle_workers = sum(1 for worker in workers if not worker.moving)
+    idle_workers = sum(1 for worker in workers if _worker_is_idle(worker))
     active_workers = max(0, worker_count - idle_workers)
+    eye_idle_workers = sum(
+        1
+        for worker in workers
+        if worker.eyes_closed and (worker.eyes_closed_seconds or 0.0) >= 10.0
+    )
+    keyboard_break_workers = sum(
+        1
+        for worker in workers
+        if worker.hand_on_keyboard is False and (worker.hand_off_keyboard_seconds or 0.0) >= 10.0
+    )
 
     no_helmet = sum(1 for detection in frame.detections if detection.category == "no_helmet")
     restricted_entries = sum(
@@ -75,7 +93,7 @@ def analyze_frame(frame: CameraFrame) -> FrameAnalysis:
     if frame.tasks_planned > 0:
         progress_pct = _pct(frame.tasks_completed, frame.tasks_planned)
     else:
-        progress_pct = min(100.0, utilization_pct * 0.9)
+        progress_pct = 0.0
 
     safety_violations = no_helmet + restricted_entries
 
@@ -86,10 +104,16 @@ def analyze_frame(frame: CameraFrame) -> FrameAnalysis:
         alerts.append(f"{restricted_entries} restricted zone intrusions")
     if phone_use >= 3:
         alerts.append("high distraction pattern detected")
+    if eye_idle_workers > 0:
+        alerts.append(f"{eye_idle_workers} workers eyes closed for >10s (idle trigger)")
+    if keyboard_break_workers > 0:
+        alerts.append(f"{keyboard_break_workers} workers hands off keyboard for >10s (break trigger)")
     if utilization_pct < 55:
         alerts.append("low workforce utilization")
     if frame.tasks_planned >= 6 and progress_pct < 45:
         alerts.append("task completion lagging plan")
+    if frame.tasks_planned == 0:
+        alerts.append("task progress unavailable: no plan input")
 
     return FrameAnalysis(
         camera_id=frame.camera_id,
@@ -97,6 +121,7 @@ def analyze_frame(frame: CameraFrame) -> FrameAnalysis:
         worker_count=worker_count,
         active_workers=active_workers,
         idle_workers=idle_workers,
+        keyboard_break_workers=keyboard_break_workers,
         utilization_pct=round(utilization_pct, 1),
         progress_pct=round(progress_pct, 1),
         safety_violations=safety_violations,
