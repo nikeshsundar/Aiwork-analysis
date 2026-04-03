@@ -46,6 +46,8 @@ const stopCameraBtn = document.getElementById("stopCameraBtn");
 
 const cameraVideo = document.getElementById("cameraVideo");
 const trackingOverlay = document.getElementById("trackingOverlay");
+const faceTrackingCanvas = document.getElementById("faceTrackingCanvas");
+const faceTrackingStatus = document.getElementById("faceTrackingStatus");
 const captureCanvas = document.getElementById("captureCanvas");
 const cameraIdInput = document.getElementById("cameraIdInput");
 const siteAreaInput = document.getElementById("siteAreaInput");
@@ -296,6 +298,26 @@ function syncTrackingOverlaySize() {
   }
 }
 
+function syncFaceTrackingCanvasSize() {
+  if (!faceTrackingCanvas) {
+    return;
+  }
+
+  const rect = faceTrackingCanvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const targetWidth = Math.max(1, Math.round(rect.width * dpr));
+  const targetHeight = Math.max(1, Math.round(rect.height * dpr));
+
+  if (faceTrackingCanvas.width !== targetWidth || faceTrackingCanvas.height !== targetHeight) {
+    faceTrackingCanvas.width = targetWidth;
+    faceTrackingCanvas.height = targetHeight;
+  }
+}
+
 function clearTrackingOverlay() {
   if (!trackingOverlay) {
     return;
@@ -303,6 +325,121 @@ function clearTrackingOverlay() {
 
   const context = trackingOverlay.getContext("2d");
   context.clearRect(0, 0, trackingOverlay.width, trackingOverlay.height);
+}
+
+function clearFaceTrackingScreen(message = "Face tracker idle. Start camera to lock face.") {
+  if (!faceTrackingCanvas) {
+    return;
+  }
+
+  syncFaceTrackingCanvasSize();
+  const context = faceTrackingCanvas.getContext("2d");
+  const width = faceTrackingCanvas.width;
+  const height = faceTrackingCanvas.height;
+
+  context.fillStyle = "#0a1114";
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(64, 208, 180, 0.55)";
+  context.lineWidth = Math.max(2, Math.round(2 * (window.devicePixelRatio || 1)));
+  const guideW = Math.round(width * 0.46);
+  const guideH = Math.round(height * 0.54);
+  const guideX = Math.round((width - guideW) / 2);
+  const guideY = Math.round((height - guideH) / 2);
+  context.strokeRect(guideX, guideY, guideW, guideH);
+
+  context.fillStyle = "#9fb7c4";
+  context.font = `${Math.max(13, Math.round(11 * (window.devicePixelRatio || 1)))}px \"IBM Plex Mono\", monospace`;
+  context.fillText("face-lock target", guideX + 8, guideY + 22);
+
+  if (faceTrackingStatus) {
+    faceTrackingStatus.textContent = message;
+  }
+}
+
+function renderFaceTrackingScreen(frame) {
+  if (!faceTrackingCanvas || !frame || !Array.isArray(frame.detections)) {
+    clearFaceTrackingScreen();
+    return;
+  }
+
+  const workers = frame.detections.filter((detection) => detection.category === "worker");
+  const faceWorkers = workers.filter((detection) => detection.face_detected === true);
+  if (!faceWorkers.length) {
+    clearFaceTrackingScreen("Face lost. Keep face visible and centered.");
+    return;
+  }
+
+  const target = faceWorkers
+    .slice()
+    .sort((a, b) => {
+      const aArea = Number(a.face_bbox?.w || 0) * Number(a.face_bbox?.h || 0);
+      const bArea = Number(b.face_bbox?.w || 0) * Number(b.face_bbox?.h || 0);
+      return (Number(b.confidence || 0) + bArea) - (Number(a.confidence || 0) + aArea);
+    })[0];
+
+  const workerBox = target.bbox || {};
+  const fallbackFaceBox = {
+    x: Number(workerBox.x || 0) + (Number(workerBox.w || 0) * 0.22),
+    y: Number(workerBox.y || 0) + (Number(workerBox.h || 0) * 0.04),
+    w: Number(workerBox.w || 0) * 0.56,
+    h: Number(workerBox.h || 0) * 0.36,
+  };
+  const faceBox = target.face_bbox || fallbackFaceBox;
+
+  const source = cameraVideo;
+  const sourceWidth = source && source.videoWidth ? source.videoWidth : 0;
+  const sourceHeight = source && source.videoHeight ? source.videoHeight : 0;
+  if (!sourceWidth || !sourceHeight) {
+    clearFaceTrackingScreen("Face detected. Start live camera to render face screen.");
+    return;
+  }
+
+  syncFaceTrackingCanvasSize();
+  const context = faceTrackingCanvas.getContext("2d");
+  const canvasWidth = faceTrackingCanvas.width;
+  const canvasHeight = faceTrackingCanvas.height;
+  context.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  const fx = Math.max(0, Math.min(sourceWidth - 1, Math.round(Number(faceBox.x || 0) * sourceWidth)));
+  const fy = Math.max(0, Math.min(sourceHeight - 1, Math.round(Number(faceBox.y || 0) * sourceHeight)));
+  const fw = Math.max(2, Math.min(sourceWidth - fx, Math.round(Number(faceBox.w || 0.1) * sourceWidth)));
+  const fh = Math.max(2, Math.min(sourceHeight - fy, Math.round(Number(faceBox.h || 0.1) * sourceHeight)));
+
+  const padX = Math.round(fw * 1.05);
+  const padY = Math.round(fh * 1.28);
+  const cropX = Math.max(0, fx - padX);
+  const cropY = Math.max(0, fy - padY);
+  const cropW = Math.max(2, Math.min(sourceWidth - cropX, fw + (padX * 2)));
+  const cropH = Math.max(2, Math.min(sourceHeight - cropY, fh + (padY * 2)));
+
+  context.drawImage(source, cropX, cropY, cropW, cropH, 0, 0, canvasWidth, canvasHeight);
+
+  const scaleX = canvasWidth / cropW;
+  const scaleY = canvasHeight / cropH;
+  const faceLeft = (fx - cropX) * scaleX;
+  const faceTop = (fy - cropY) * scaleY;
+  const faceWidth = fw * scaleX;
+  const faceHeight = fh * scaleY;
+
+  context.strokeStyle = "#40d0b4";
+  context.lineWidth = Math.max(2, Math.round(2 * (window.devicePixelRatio || 1)));
+  context.strokeRect(faceLeft, faceTop, faceWidth, faceHeight);
+
+  const eyeText = target.eyes_closed === true
+    ? `eyes closed ${Number(target.eyes_closed_seconds || 0).toFixed(1)}s`
+    : target.eyes_closed === false
+      ? "eyes open"
+      : "eyes unknown";
+  const keyboardText = target.hand_on_keyboard === true
+    ? "keyboard on"
+    : target.hand_on_keyboard === false
+      ? `keyboard off ${Number(target.hand_off_keyboard_seconds || 0).toFixed(1)}s`
+      : "keyboard unknown";
+
+  if (faceTrackingStatus) {
+    faceTrackingStatus.textContent = `Face lock ${target.track_id || "W-001"} | ${eyeText} | ${keyboardText}`;
+  }
 }
 
 function detectionColor(detection) {
@@ -856,6 +993,7 @@ async function analyzeSingleCameraFrame() {
 
     upsertFrameAndAnalysis(result.frame, result.analysis);
     drawTrackingOverlay(result.frame);
+    renderFaceTrackingScreen(result.frame);
     updateLiveMovement(result.analysis, result.motion_score);
     updateEvidenceBadges(result);
     updateEyeIdleBadge(result);
@@ -919,6 +1057,7 @@ async function analyzeUploadedFrame() {
     const result = await response.json();
     upsertFrameAndAnalysis(result.frame, result.analysis);
     drawTrackingOverlay(result.frame);
+    renderFaceTrackingScreen(result.frame);
     updateLiveMovement(result.analysis, result.motion_score);
     updateEvidenceBadges(result);
     updateEyeIdleBadge(result);
@@ -960,6 +1099,7 @@ async function resetLiveBaseline(silent = false) {
     updateEyeIdleBadge(null);
     updateHandBreakBadge(null);
     renderEvidenceStrip();
+    clearFaceTrackingScreen();
 
     if (!silent) {
       setStatus(`Live baseline reset for ${cameraId}.`, "ok");
@@ -997,6 +1137,8 @@ async function startCameraAnalysis() {
     cameraVideo.srcObject = stream;
     await cameraVideo.play();
     syncTrackingOverlaySize();
+    syncFaceTrackingCanvasSize();
+    clearFaceTrackingScreen("Searching for face lock...");
 
     const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack) {
@@ -1036,6 +1178,7 @@ function stopCameraAnalysis() {
   cameraVideo.srcObject = null;
   state.previousFrameBase64 = null;
   clearTrackingOverlay();
+  clearFaceTrackingScreen();
   updateLiveMovement(null, 0);
   updateEyeIdleBadge(null);
   updateHandBreakBadge(null);
@@ -1077,6 +1220,7 @@ async function loadSeedFrames() {
     updateEyeIdleBadge(null);
     updateHandBreakBadge(null);
     renderEvidenceStrip();
+    clearFaceTrackingScreen();
 
     setStatus(`Loaded ${state.frames.length} seed frames. Ready for analysis.`);
   } catch (error) {
@@ -1270,13 +1414,32 @@ trendCameraSelect.addEventListener("change", () => {
 });
 
 window.addEventListener("beforeunload", stopCameraAnalysis);
-window.addEventListener("resize", syncTrackingOverlaySize);
-cameraVideo.addEventListener("loadedmetadata", syncTrackingOverlaySize);
+window.addEventListener("resize", () => {
+  syncTrackingOverlaySize();
+  syncFaceTrackingCanvasSize();
+
+  const latestFrame = state.frames[state.frames.length - 1];
+  if (latestFrame) {
+    drawTrackingOverlay(latestFrame);
+    renderFaceTrackingScreen(latestFrame);
+  }
+});
+cameraVideo.addEventListener("loadedmetadata", () => {
+  syncTrackingOverlaySize();
+  syncFaceTrackingCanvasSize();
+
+  const latestFrame = state.frames[state.frames.length - 1];
+  if (latestFrame) {
+    drawTrackingOverlay(latestFrame);
+    renderFaceTrackingScreen(latestFrame);
+  }
+});
 
 setStatus("Ready. Start camera to run live evidence mode.");
 updateLiveMovement(null, 0);
 updateEvidenceBadges(null);
 updateEyeIdleBadge(null);
 updateHandBreakBadge(null);
+clearFaceTrackingScreen();
 renderEvidenceStrip();
 refreshCameraDevices();

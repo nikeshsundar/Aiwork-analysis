@@ -27,6 +27,7 @@ class Detection(BaseModel):
     category: DetectionCategory
     confidence: float = Field(..., ge=0, le=1)
     bbox: BoundingBox
+    face_bbox: Optional[BoundingBox] = None
     zone: Optional[str] = None
     moving: bool = True
     track_id: Optional[str] = Field(default=None, max_length=32)

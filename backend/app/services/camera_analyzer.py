@@ -62,6 +62,7 @@ class _TrackedWorker:
     confidence: float
     zone: str
     moving: bool
+    face_bbox: Optional[BoundingBox] = None
     face_detected: bool = False
     eyes_closed: bool = False
     eyes_closed_seconds: float = 0.0
@@ -764,30 +765,31 @@ def _bbox_to_pixels(
 def _detect_face_eye_state(
     frame: np.ndarray,
     bbox: BoundingBox,
-) -> Tuple[bool, Optional[bool]]:
+) -> Tuple[bool, Optional[bool], Optional[BoundingBox]]:
     if _FACE_CASCADE.empty() and _FACE_CASCADE_ALT.empty() and _FACE_PROFILE_CASCADE.empty():
-        return False, None
+        return False, None, None
 
     height, width = frame.shape[:2]
     x1, y1, x2, y2 = _bbox_to_pixels(bbox, width, height, padding_ratio=0.02)
     roi = frame[y1:y2, x1:x2]
     if roi.size == 0:
-        return False, None
+        return False, None, None
 
     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
 
     face = _detect_primary_face(gray)
     if face is None:
-        return False, None
+        return False, None, None
 
     fx, fy, fw, fh = face
+    face_bbox = _to_bbox(x1 + fx, y1 + fy, fw, fh, width, height)
     face_roi = gray[fy:fy + fh, fx:fx + fw]
     if face_roi.size == 0:
-        return True, None
+        return True, None, face_bbox
 
     if _EYE_CASCADE.empty():
-        return True, None
+        return True, None, face_bbox
 
     upper_face = face_roi[: max(1, int(face_roi.shape[0] * 0.72)), :]
     eyes = _EYE_CASCADE.detectMultiScale(
@@ -798,7 +800,7 @@ def _detect_face_eye_state(
     )
 
     eyes_open = len(eyes) >= 1
-    return True, not eyes_open
+    return True, not eyes_open, face_bbox
 
 
 def _detect_primary_face(gray: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
@@ -972,6 +974,7 @@ def _face_anchor_worker_detection(frame: np.ndarray, site_area: str) -> Optional
         category="worker",
         confidence=FACE_ANCHOR_CONFIDENCE,
         bbox=_to_bbox(body_x, body_y, body_w, body_h, width, height),
+        face_bbox=_to_bbox(x, y, w, h, width, height),
         zone=site_area,
         moving=True,
         face_detected=True,
@@ -1110,6 +1113,8 @@ def _stabilize_worker_detections(
 
             if detection.face_detected is True:
                 track.face_detected = True
+                if detection.face_bbox is not None:
+                    track.face_bbox = detection.face_bbox
                 if detection.eyes_closed is True:
                     track.eyes_closed = True
                     track.eyes_closed_seconds = min(
@@ -1121,6 +1126,7 @@ def _stabilize_worker_detections(
                     track.eyes_closed_seconds = 0.0
             elif detection.face_detected is False:
                 track.face_detected = False
+                track.face_bbox = None
                 track.eyes_closed = False
                 track.eyes_closed_seconds = max(0.0, track.eyes_closed_seconds - (dt_seconds * 0.8))
 
@@ -1141,6 +1147,7 @@ def _stabilize_worker_detections(
             if motion_score < 0.015:
                 track.moving = False
             track.face_detected = False
+            track.face_bbox = None
             track.eyes_closed = False
             track.eyes_closed_seconds = max(0.0, track.eyes_closed_seconds - (dt_seconds * 0.5))
             track.hand_on_keyboard = False
@@ -1160,6 +1167,7 @@ def _stabilize_worker_detections(
                     confidence=detection.confidence,
                     zone=detection.zone or site_area,
                     moving=detection.moving,
+                    face_bbox=detection.face_bbox if detection.face_detected else None,
                     face_detected=bool(detection.face_detected),
                     eyes_closed=bool(detection.eyes_closed),
                     eyes_closed_seconds=(
@@ -1196,6 +1204,7 @@ def _stabilize_worker_detections(
                     zone=track.zone,
                     moving=track.moving,
                     track_id=f"W-{track.track_id:03d}",
+                    face_bbox=track.face_bbox,
                     face_detected=track.face_detected,
                     eyes_closed=track.eyes_closed,
                     eyes_closed_seconds=round(track.eyes_closed_seconds, 1),
@@ -1332,8 +1341,9 @@ def analyze_camera_image(
             local_motion_score = _region_motion_score(current_frame, previous_frame, detection.bbox)
             detection.moving = local_motion_score >= 0.012 or motion_score >= 0.03
 
-        face_detected, eyes_closed = _detect_face_eye_state(current_frame, detection.bbox)
+        face_detected, eyes_closed, face_bbox = _detect_face_eye_state(current_frame, detection.bbox)
         detection.face_detected = face_detected
+        detection.face_bbox = face_bbox if face_detected else None
         detection.eyes_closed = eyes_closed if face_detected else None
         detection.eyes_closed_seconds = 0.0
 
@@ -1361,6 +1371,7 @@ def analyze_camera_image(
             )
             best.bbox = _smooth_bbox(best.bbox, face_anchor_detection.bbox, alpha=SINGLE_PERSON_FACE_BLEND)
             best.face_detected = True
+            best.face_bbox = face_anchor_detection.face_bbox
             best.eyes_closed = face_anchor_detection.eyes_closed
             worker_detections = [best]
         else:
@@ -1384,6 +1395,7 @@ def analyze_camera_image(
                 alpha=SINGLE_PERSON_FACE_BLEND,
             )
             worker_detections[0].face_detected = True
+            worker_detections[0].face_bbox = face_anchor_detection.face_bbox
             worker_detections[0].eyes_closed = face_anchor_detection.eyes_closed
         elif face_anchor_detection is not None and not worker_detections:
             worker_detections = [face_anchor_detection]
@@ -1397,6 +1409,7 @@ def analyze_camera_image(
         worker_detections = _apply_single_person_mode(worker_detections)
         if worker_detections and face_anchor_detection is not None:
             worker_detections[0].face_detected = True
+            worker_detections[0].face_bbox = face_anchor_detection.face_bbox
             worker_detections[0].eyes_closed = face_anchor_detection.eyes_closed
             worker_detections[0].eyes_closed_seconds = worker_detections[0].eyes_closed_seconds or 0.0
         if not worker_detections:

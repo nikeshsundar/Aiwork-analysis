@@ -27,11 +27,51 @@
           <button id="reportBtn" class="secondary">Generate Shift Report</button>
         </div>
 
+        <p id="statusText" class="status">Ready.</p>
+      </section>
+
+      <section class="panel summary-panel">
+        <h2>Live Summary</h2>
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-label">Frames</span>
+            <strong id="framesProcessed">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Workers</span>
+            <strong id="totalWorkers">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Utilization</span>
+            <strong id="avgUtilization">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Task Progress</span>
+            <strong id="avgProgress">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Safety Violations</span>
+            <strong id="safetyViolations">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Active Workers</span>
+            <strong id="activeWorkers">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel camera-live-panel">
         <div class="camera-panel">
           <h3>Live Camera Analysis</h3>
-          <div class="camera-video-stack">
-            <video id="cameraVideo" autoplay playsinline muted></video>
-            <canvas id="trackingOverlay" class="tracking-overlay"></canvas>
+          <div class="camera-live-views">
+            <div class="camera-video-stack">
+              <video id="cameraVideo" autoplay playsinline muted></video>
+              <canvas id="trackingOverlay" class="tracking-overlay"></canvas>
+            </div>
+            <div class="face-tracking-stage">
+              <canvas id="faceTrackingCanvas" class="face-tracking-canvas"></canvas>
+              <p id="faceTrackingStatus" class="face-tracking-status">Face tracker idle. Start camera to lock face.</p>
+            </div>
           </div>
           <canvas id="captureCanvas" class="hidden-canvas"></canvas>
 
@@ -111,38 +151,6 @@
             <div id="evidenceStrip" class="evidence-strip-grid">
               <div class="placeholder">No evidence yet. Start camera to collect snapshots.</div>
             </div>
-          </div>
-        </div>
-
-        <p id="statusText" class="status">Ready.</p>
-      </section>
-
-      <section class="panel summary-panel">
-        <h2>Live Summary</h2>
-        <div class="metrics-grid">
-          <div class="metric">
-            <span class="metric-label">Frames</span>
-            <strong id="framesProcessed">-</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Workers</span>
-            <strong id="totalWorkers">-</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Utilization</span>
-            <strong id="avgUtilization">-</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Task Progress</span>
-            <strong id="avgProgress">-</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Safety Violations</span>
-            <strong id="safetyViolations">-</strong>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Active Workers</span>
-            <strong id="activeWorkers">-</strong>
           </div>
         </div>
       </section>
