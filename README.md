@@ -117,6 +117,28 @@ Open:
 - Dashboard: `http://127.0.0.1:8000`
 - API docs: `http://127.0.0.1:8000/docs`
 
+## Deploy Free on Render (One-Click Blueprint)
+
+This repository now includes `render.yaml` at project root.
+
+Steps:
+
+1. Push latest code to GitHub.
+2. In Render, click **New +** -> **Blueprint**.
+3. Select this repo and branch.
+4. Render will detect `render.yaml` and create one free Python web service.
+5. Set secret env var `OPENROUTER_API_KEY` in Render dashboard.
+6. Deploy and open your Render URL.
+
+Blueprint config uses:
+
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health path: `/health`
+
+Note: live camera capture still runs from end-user browser and sends frames to backend APIs.
+
 ## Demo Flow (Live Evidence First)
 
 1. Open **Live Camera Analysis** and click **Start Camera**.
