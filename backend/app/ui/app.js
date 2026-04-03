@@ -27,6 +27,8 @@ const state = {
   lastEvidenceAt: 0,
 };
 
+const IS_RENDER_HOST = window.location.hostname.includes("onrender.com");
+
 const statusText = document.getElementById("statusText");
 const cameraTableBody = document.getElementById("cameraTableBody");
 const insightsList = document.getElementById("insightsList");
@@ -97,6 +99,43 @@ const calibrationLabel = document.getElementById("calibrationLabel");
 function setStatus(text, tone = "ok") {
   statusText.textContent = text;
   statusText.dataset.tone = tone === "warn" ? "warn" : "ok";
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, options, retries = 2) {
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt <= retries) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) {
+        return response;
+      }
+
+      const retryable = response.status === 502 || response.status === 503 || response.status === 504;
+      if (!retryable || attempt >= retries) {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        throw error;
+      }
+    }
+
+    attempt += 1;
+    await delay(700 * attempt);
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error("request failed after retries");
 }
 
 function lockButtons(locked) {
@@ -1213,7 +1252,8 @@ function captureFrameBase64() {
   const context = captureCanvas.getContext("2d");
   context.drawImage(cameraVideo, 0, 0, width, height);
 
-  return captureCanvas.toDataURL("image/jpeg", 0.72);
+  const quality = IS_RENDER_HOST ? 0.58 : 0.72;
+  return captureCanvas.toDataURL("image/jpeg", quality);
 }
 
 function upsertFrameAndAnalysis(frame, analysis) {
@@ -1241,7 +1281,7 @@ async function analyzeSingleCameraFrame() {
     const payload = {
       camera_id: cameraIdInput.value.trim() || "CAM-LIVE-01",
       image_base64: imageBase64,
-      previous_image_base64: state.previousFrameBase64,
+      previous_image_base64: IS_RENDER_HOST ? null : state.previousFrameBase64,
       site_area: siteAreaInput.value.trim() || "live-zone",
       expected_workers: Number(expectedWorkersInput.value || 0),
       tasks_planned: Number(tasksPlannedInput.value || 0),
@@ -1249,7 +1289,7 @@ async function analyzeSingleCameraFrame() {
       single_person_mode: Boolean(singlePersonModeInput && singlePersonModeInput.checked),
     };
 
-    const response = await fetch("/vision/analyze-camera-frame", {
+    const response = await fetchWithRetry("/vision/analyze-camera-frame", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1315,7 +1355,7 @@ async function analyzeUploadedFrame() {
       single_person_mode: Boolean(singlePersonModeInput && singlePersonModeInput.checked),
     };
 
-    const response = await fetch("/vision/analyze-camera-frame", {
+    const response = await fetchWithRetry("/vision/analyze-camera-frame", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1427,7 +1467,12 @@ async function startCameraAnalysis() {
     await analyzeSingleCameraFrame();
     await refreshManagerReport(true);
 
-    const intervalSec = Math.max(1, Math.min(10, Number(captureIntervalInput.value || 3)));
+    const minimumInterval = IS_RENDER_HOST ? 2 : 1;
+    const intervalSec = Math.max(minimumInterval, Math.min(10, Number(captureIntervalInput.value || 3)));
+    if (IS_RENDER_HOST && Number(captureIntervalInput.value || 0) < minimumInterval) {
+      captureIntervalInput.value = String(minimumInterval);
+      setStatus("Render mode: using safer 2s capture interval for stable analysis.", "ok");
+    }
     state.cameraTimer = setInterval(analyzeSingleCameraFrame, intervalSec * 1000);
 
     if (state.managerReportTimer) {
