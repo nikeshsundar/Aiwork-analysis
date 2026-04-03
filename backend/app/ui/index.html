@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WorkSight - Worker Progress Analytics</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow"></div>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">AI Progress Analytics</p>
+        <h1>WorkSight Command Deck</h1>
+      </div>
+      <div class="privacy-chip">Privacy Mode: Team-level, No Face ID</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel controls-panel">
+        <h2>Operations</h2>
+        <div class="button-grid">
+          <button id="loadSeedBtn">Load Seed Frames</button>
+          <button id="runMockBtn">Run Mock Vision Inference</button>
+          <button id="analyzeBtn">Analyze Progress</button>
+          <button id="advancedAnalyticsBtn">Refresh Advanced Analytics</button>
+          <button id="reportBtn" class="secondary">Generate Shift Report</button>
+        </div>
+
+        <div class="camera-panel">
+          <h3>Live Camera Analysis</h3>
+          <video id="cameraVideo" autoplay playsinline muted></video>
+          <canvas id="captureCanvas" class="hidden-canvas"></canvas>
+
+          <div class="camera-form">
+            <label>
+              Camera ID
+              <input id="cameraIdInput" type="text" value="CAM-LIVE-01" />
+            </label>
+            <label>
+              Site Area
+              <input id="siteAreaInput" type="text" value="live-zone" />
+            </label>
+            <label>
+              Expected Workers
+              <input id="expectedWorkersInput" type="number" min="0" value="10" />
+            </label>
+            <label>
+              Tasks Planned
+              <input id="tasksPlannedInput" type="number" min="0" value="12" />
+            </label>
+            <label>
+              Tasks Completed
+              <input id="tasksCompletedInput" type="number" min="0" value="0" />
+            </label>
+            <label>
+              Interval (sec)
+              <input id="captureIntervalInput" type="number" min="1" max="10" value="3" />
+            </label>
+            <label>
+              Camera Device
+              <select id="cameraDeviceSelect">
+                <option value="__auto__">Auto-select</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="camera-actions">
+            <button id="startCameraBtn">Start Camera</button>
+            <button id="refreshDevicesBtn" class="secondary">Refresh Devices</button>
+            <button id="stopCameraBtn" class="secondary" disabled>Stop Camera</button>
+          </div>
+
+          <div class="camera-fallback">
+            <label>
+              Fallback Image
+              <input id="uploadFrameInput" type="file" accept="image/*" />
+            </label>
+            <button id="analyzeUploadBtn" class="secondary">Analyze Uploaded Frame</button>
+          </div>
+
+          <p id="cameraDebugText" class="camera-debug">Camera diagnostics will appear here.</p>
+        </div>
+
+        <p id="statusText" class="status">Ready.</p>
+      </section>
+
+      <section class="panel summary-panel">
+        <h2>Live Summary</h2>
+        <div class="metrics-grid">
+          <div class="metric">
+            <span class="metric-label">Frames</span>
+            <strong id="framesProcessed">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Workers</span>
+            <strong id="totalWorkers">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Utilization</span>
+            <strong id="avgUtilization">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Progress</span>
+            <strong id="avgProgress">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Safety Violations</span>
+            <strong id="safetyViolations">-</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Active Workers</span>
+            <strong id="activeWorkers">-</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel table-panel">
+        <h2>Camera Analysis</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Camera</th>
+                <th>Workers</th>
+                <th>Utilization</th>
+                <th>Progress</th>
+                <th>Safety</th>
+                <th>Alerts</th>
+              </tr>
+            </thead>
+            <tbody id="cameraTableBody">
+              <tr><td colspan="6" class="placeholder">No analysis yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel insights-panel">
+        <h2>Shift Insights</h2>
+        <ul id="insightsList" class="insights-list">
+          <li class="placeholder">Generate a report to see insights.</li>
+        </ul>
+      </section>
+
+      <section class="panel portfolio-panel">
+        <h2>Portfolio Ranking</h2>
+        <ul id="portfolioList" class="portfolio-list">
+          <li class="placeholder">Run advanced analytics to view ranking.</li>
+        </ul>
+      </section>
+
+      <section class="panel health-panel">
+        <h2>Camera Health</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Camera</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+                <th>Density</th>
+                <th>Reliability</th>
+              </tr>
+            </thead>
+            <tbody id="healthTableBody">
+              <tr><td colspan="5" class="placeholder">Run advanced analytics to view health.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel events-panel">
+        <h2>Event Feed</h2>
+        <ul id="eventFeedList" class="events-list">
+          <li class="placeholder">Run advanced analytics to load event feed.</li>
+        </ul>
+      </section>
+
+      <section class="panel trend-panel">
+        <h2>Trend Timeline</h2>
+        <div class="trend-controls">
+          <label>
+            Camera
+            <select id="trendCameraSelect"></select>
+          </label>
+        </div>
+        <div class="trend-canvas-wrap">
+          <canvas id="trendChartCanvas"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,83 @@
+{
+  "project": "WorkSight Construction Pilot",
+  "privacy_mode": "team-level-no-face-id",
+  "frames": [
+    {
+      "camera_id": "CAM-FAB-01",
+      "timestamp": "2026-04-03T10:00:00Z",
+      "site_area": "fabrication-yard",
+      "expected_workers": 12,
+      "tasks_planned": 18,
+      "tasks_completed": 9,
+      "detections": [
+        {"category": "worker", "confidence": 0.95, "bbox": {"x": 0.12, "y": 0.18, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.30, "y": 0.20, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
+        {"category": "worker", "confidence": 0.90, "bbox": {"x": 0.48, "y": 0.22, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": false},
+        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.64, "y": 0.24, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
+        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.22, "y": 0.45, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": false},
+        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.42, "y": 0.46, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
+        {"category": "no_helmet", "confidence": 0.93, "bbox": {"x": 0.52, "y": 0.28, "w": 0.08, "h": 0.1}, "zone": "fabrication-yard", "moving": true},
+        {"category": "phone_use", "confidence": 0.84, "bbox": {"x": 0.18, "y": 0.50, "w": 0.08, "h": 0.1}, "zone": "fabrication-yard", "moving": false}
+      ]
+    },
+    {
+      "camera_id": "CAM-FOUND-02",
+      "timestamp": "2026-04-03T10:00:00Z",
+      "site_area": "foundation-zone",
+      "expected_workers": 14,
+      "tasks_planned": 22,
+      "tasks_completed": 11,
+      "detections": [
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.14, "y": 0.16, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
+        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.32, "y": 0.18, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
+        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.50, "y": 0.20, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
+        {"category": "worker", "confidence": 0.89, "bbox": {"x": 0.68, "y": 0.22, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": false},
+        {"category": "worker", "confidence": 0.90, "bbox": {"x": 0.24, "y": 0.43, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": false},
+        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.42, "y": 0.44, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
+        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.60, "y": 0.46, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
+        {"category": "restricted_zone_entry", "confidence": 0.88, "bbox": {"x": 0.72, "y": 0.50, "w": 0.08, "h": 0.1}, "zone": "restricted", "moving": true}
+      ]
+    },
+    {
+      "camera_id": "CAM-OFF-03",
+      "timestamp": "2026-04-03T10:00:00Z",
+      "site_area": "office-war-room",
+      "expected_workers": 9,
+      "tasks_planned": 12,
+      "tasks_completed": 7,
+      "detections": [
+        {"category": "worker", "confidence": 0.96, "bbox": {"x": 0.16, "y": 0.20, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": true},
+        {"category": "worker", "confidence": 0.95, "bbox": {"x": 0.34, "y": 0.20, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": true},
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.52, "y": 0.22, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": false},
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.70, "y": 0.22, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": true},
+        {"category": "phone_use", "confidence": 0.85, "bbox": {"x": 0.54, "y": 0.24, "w": 0.08, "h": 0.1}, "zone": "office-war-room", "moving": false}
+      ]
+    }
+  ],
+  "mock_requests": [
+    {
+      "camera_id": "CAM-FAB-01",
+      "site_area": "fabrication-yard",
+      "expected_workers": 12,
+      "people_count": 10,
+      "idle_ratio": 0.2,
+      "no_helmet_count": 1,
+      "phone_use_count": 1,
+      "restricted_entry_count": 0,
+      "tasks_planned": 18,
+      "tasks_completed": 9
+    },
+    {
+      "camera_id": "CAM-FOUND-02",
+      "site_area": "foundation-zone",
+      "expected_workers": 14,
+      "people_count": 11,
+      "idle_ratio": 0.3,
+      "no_helmet_count": 0,
+      "phone_use_count": 0,
+      "restricted_entry_count": 1,
+      "tasks_planned": 22,
+      "tasks_completed": 11
+    }
+  ]
+}
