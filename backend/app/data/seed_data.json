@@ -1,83 +1,77 @@
 {
-  "project": "WorkSight Construction Pilot",
+  "project": "WorkSight Software Productivity Pilot",
   "privacy_mode": "team-level-no-face-id",
   "frames": [
     {
-      "camera_id": "CAM-FAB-01",
+      "camera_id": "CAM-ENG-01",
       "timestamp": "2026-04-03T10:00:00Z",
-      "site_area": "fabrication-yard",
-      "expected_workers": 12,
-      "tasks_planned": 18,
-      "tasks_completed": 9,
-      "detections": [
-        {"category": "worker", "confidence": 0.95, "bbox": {"x": 0.12, "y": 0.18, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
-        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.30, "y": 0.20, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
-        {"category": "worker", "confidence": 0.90, "bbox": {"x": 0.48, "y": 0.22, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": false},
-        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.64, "y": 0.24, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
-        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.22, "y": 0.45, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": false},
-        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.42, "y": 0.46, "w": 0.1, "h": 0.13}, "zone": "fabrication-yard", "moving": true},
-        {"category": "no_helmet", "confidence": 0.93, "bbox": {"x": 0.52, "y": 0.28, "w": 0.08, "h": 0.1}, "zone": "fabrication-yard", "moving": true},
-        {"category": "phone_use", "confidence": 0.84, "bbox": {"x": 0.18, "y": 0.50, "w": 0.08, "h": 0.1}, "zone": "fabrication-yard", "moving": false}
-      ]
-    },
-    {
-      "camera_id": "CAM-FOUND-02",
-      "timestamp": "2026-04-03T10:00:00Z",
-      "site_area": "foundation-zone",
-      "expected_workers": 14,
-      "tasks_planned": 22,
-      "tasks_completed": 11,
-      "detections": [
-        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.14, "y": 0.16, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
-        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.32, "y": 0.18, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
-        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.50, "y": 0.20, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
-        {"category": "worker", "confidence": 0.89, "bbox": {"x": 0.68, "y": 0.22, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": false},
-        {"category": "worker", "confidence": 0.90, "bbox": {"x": 0.24, "y": 0.43, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": false},
-        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.42, "y": 0.44, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
-        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.60, "y": 0.46, "w": 0.1, "h": 0.12}, "zone": "foundation-zone", "moving": true},
-        {"category": "restricted_zone_entry", "confidence": 0.88, "bbox": {"x": 0.72, "y": 0.50, "w": 0.08, "h": 0.1}, "zone": "restricted", "moving": true}
-      ]
-    },
-    {
-      "camera_id": "CAM-OFF-03",
-      "timestamp": "2026-04-03T10:00:00Z",
-      "site_area": "office-war-room",
-      "expected_workers": 9,
-      "tasks_planned": 12,
+      "site_area": "dev-bay-a",
+      "expected_workers": 8,
+      "tasks_planned": 14,
       "tasks_completed": 7,
       "detections": [
-        {"category": "worker", "confidence": 0.96, "bbox": {"x": 0.16, "y": 0.20, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": true},
-        {"category": "worker", "confidence": 0.95, "bbox": {"x": 0.34, "y": 0.20, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": true},
-        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.52, "y": 0.22, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": false},
-        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.70, "y": 0.22, "w": 0.09, "h": 0.12}, "zone": "office-war-room", "moving": true},
-        {"category": "phone_use", "confidence": 0.85, "bbox": {"x": 0.54, "y": 0.24, "w": 0.08, "h": 0.1}, "zone": "office-war-room", "moving": false}
+        {"category": "worker", "confidence": 0.95, "bbox": {"x": 0.14, "y": 0.20, "w": 0.1, "h": 0.13}, "zone": "dev-bay-a", "moving": true, "hand_on_keyboard": true},
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.30, "y": 0.22, "w": 0.1, "h": 0.13}, "zone": "dev-bay-a", "moving": true, "hand_on_keyboard": true},
+        {"category": "worker", "confidence": 0.92, "bbox": {"x": 0.46, "y": 0.23, "w": 0.1, "h": 0.13}, "zone": "dev-bay-a", "moving": false, "hand_on_keyboard": false, "hand_off_keyboard_seconds": 12.0},
+        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.62, "y": 0.24, "w": 0.1, "h": 0.13}, "zone": "dev-bay-a", "moving": true, "eyes_closed": false},
+        {"category": "worker", "confidence": 0.90, "bbox": {"x": 0.22, "y": 0.45, "w": 0.1, "h": 0.13}, "zone": "dev-bay-a", "moving": false, "eyes_closed": true, "eyes_closed_seconds": 11.5},
+        {"category": "phone_use", "confidence": 0.86, "bbox": {"x": 0.40, "y": 0.50, "w": 0.08, "h": 0.1}, "zone": "dev-bay-a", "moving": false}
+      ]
+    },
+    {
+      "camera_id": "CAM-ENG-02",
+      "timestamp": "2026-04-03T10:00:00Z",
+      "site_area": "qa-war-room",
+      "expected_workers": 7,
+      "tasks_planned": 12,
+      "tasks_completed": 6,
+      "detections": [
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.16, "y": 0.18, "w": 0.1, "h": 0.12}, "zone": "qa-war-room", "moving": true},
+        {"category": "worker", "confidence": 0.93, "bbox": {"x": 0.34, "y": 0.19, "w": 0.1, "h": 0.12}, "zone": "qa-war-room", "moving": true},
+        {"category": "worker", "confidence": 0.91, "bbox": {"x": 0.52, "y": 0.20, "w": 0.1, "h": 0.12}, "zone": "qa-war-room", "moving": false, "hand_on_keyboard": false, "hand_off_keyboard_seconds": 10.8},
+        {"category": "worker", "confidence": 0.90, "bbox": {"x": 0.70, "y": 0.21, "w": 0.1, "h": 0.12}, "zone": "qa-war-room", "moving": true},
+        {"category": "phone_use", "confidence": 0.84, "bbox": {"x": 0.58, "y": 0.46, "w": 0.08, "h": 0.1}, "zone": "qa-war-room", "moving": false}
+      ]
+    },
+    {
+      "camera_id": "CAM-ENG-03",
+      "timestamp": "2026-04-03T10:00:00Z",
+      "site_area": "product-squad-hub",
+      "expected_workers": 6,
+      "tasks_planned": 10,
+      "tasks_completed": 8,
+      "detections": [
+        {"category": "worker", "confidence": 0.96, "bbox": {"x": 0.18, "y": 0.20, "w": 0.09, "h": 0.12}, "zone": "product-squad-hub", "moving": true},
+        {"category": "worker", "confidence": 0.95, "bbox": {"x": 0.36, "y": 0.20, "w": 0.09, "h": 0.12}, "zone": "product-squad-hub", "moving": true},
+        {"category": "worker", "confidence": 0.94, "bbox": {"x": 0.54, "y": 0.22, "w": 0.09, "h": 0.12}, "zone": "product-squad-hub", "moving": true},
+        {"category": "worker", "confidence": 0.93, "bbox": {"x": 0.72, "y": 0.22, "w": 0.09, "h": 0.12}, "zone": "product-squad-hub", "moving": false}
       ]
     }
   ],
   "mock_requests": [
     {
-      "camera_id": "CAM-FAB-01",
-      "site_area": "fabrication-yard",
-      "expected_workers": 12,
-      "people_count": 10,
+      "camera_id": "CAM-ENG-01",
+      "site_area": "dev-bay-a",
+      "expected_workers": 8,
+      "people_count": 7,
       "idle_ratio": 0.2,
+      "no_helmet_count": 0,
+      "phone_use_count": 1,
+      "restricted_entry_count": 0,
+      "tasks_planned": 14,
+      "tasks_completed": 7
+    },
+    {
+      "camera_id": "CAM-ENG-02",
+      "site_area": "qa-war-room",
+      "expected_workers": 7,
+      "people_count": 6,
+      "idle_ratio": 0.33,
       "no_helmet_count": 1,
       "phone_use_count": 1,
       "restricted_entry_count": 0,
-      "tasks_planned": 18,
-      "tasks_completed": 9
-    },
-    {
-      "camera_id": "CAM-FOUND-02",
-      "site_area": "foundation-zone",
-      "expected_workers": 14,
-      "people_count": 11,
-      "idle_ratio": 0.3,
-      "no_helmet_count": 0,
-      "phone_use_count": 0,
-      "restricted_entry_count": 1,
-      "tasks_planned": 22,
-      "tasks_completed": 11
+      "tasks_planned": 12,
+      "tasks_completed": 6
     }
   ]
 }

@@ -8,15 +8,26 @@ from fastapi.staticfiles import StaticFiles
 
 from app.schemas import (
     AnalyticsRequest,
+    BottleneckGraphResponse,
     CameraImageAnalysisResponse,
     CameraImageRequest,
     CameraHealthResponse,
     EventFeedResponse,
+    FlowRecoveryResponse,
     IngestRequest,
     IngestResponse,
+    JudgeWowRequest,
+    JudgeWowResponse,
+    ManagerChatRequest,
+    ManagerChatResponse,
+    ManagerReportRequest,
+    ManagerReportResponse,
     MockVisionRequest,
     MockVisionResponse,
     PortfolioResponse,
+    PrivacyChallengeRequest,
+    PrivacyChallengeResponse,
+    PrivacyProofResponse,
     ResetLiveSessionRequest,
     ResetLiveSessionResponse,
     ReportRequest,
@@ -34,6 +45,19 @@ from app.services.progress_engine import (
     build_portfolio_analytics,
     build_report_insights,
     build_trend_response,
+)
+from app.services.novelty_engine import (
+    build_flow_recovery_copilot,
+    build_privacy_proof_layer,
+    build_team_bottleneck_graph,
+    privacy_challenge_store,
+)
+from app.services.kimi_copilot import build_judge_wow_response
+from app.services.manager_assistant import (
+    TimelineEvent,
+    build_manager_chat_answer,
+    build_manager_two_minute_report,
+    manager_timeline_store,
 )
 from app.services.vision_pipeline import mock_infer_frame
 
@@ -140,7 +164,25 @@ def vision_analyze_camera_frame(request: CameraImageRequest) -> CameraImageAnaly
     safety_detections = sum(
         1
         for detection in frame.detections
-        if detection.category in {"helmet", "no_helmet", "phone_use", "restricted_zone_entry"}
+        if detection.category in {"phone_use", "no_helmet", "restricted_zone_entry"}
+    )
+
+    manager_timeline_store.ingest(
+        TimelineEvent(
+            timestamp=frame.timestamp,
+            camera_id=frame.camera_id,
+            site_area=frame.site_area,
+            worker_count=analysis.worker_count,
+            active_workers=analysis.active_workers,
+            utilization_pct=analysis.utilization_pct,
+            progress_pct=analysis.progress_pct,
+            interruptions=analysis.safety_violations,
+            alerts=list(analysis.alerts),
+            eye_idle_workers=eye_idle_workers,
+            hand_break_workers=hand_break_workers,
+            activity_index_pct=calibration.activity_index_pct,
+            evidence_score=calibration.evidence_score,
+        )
     )
 
     return CameraImageAnalysisResponse(
@@ -209,6 +251,60 @@ def analytics_event_feed(request: AnalyticsRequest) -> EventFeedResponse:
 def analytics_trends(request: AnalyticsRequest) -> TrendResponse:
     analyses = analyze_frames(request.frames)
     return build_trend_response(request.frames, analyses)
+
+
+@app.post("/copilot/flow-recovery", response_model=FlowRecoveryResponse)
+def copilot_flow_recovery(request: AnalyticsRequest) -> FlowRecoveryResponse:
+    analyses = analyze_frames(request.frames)
+    return build_flow_recovery_copilot(analyses)
+
+
+@app.post("/copilot/bottleneck-graph", response_model=BottleneckGraphResponse)
+def copilot_bottleneck_graph(request: AnalyticsRequest) -> BottleneckGraphResponse:
+    analyses = analyze_frames(request.frames)
+    return build_team_bottleneck_graph(request.frames, analyses)
+
+
+@app.post("/copilot/judge-wow", response_model=JudgeWowResponse)
+def copilot_judge_wow(request: JudgeWowRequest) -> JudgeWowResponse:
+    analyses = analyze_frames(request.frames)
+    summary = aggregate_analyses(analyses)
+    return build_judge_wow_response(
+        frames=request.frames,
+        analyses=analyses,
+        summary=summary,
+        judge_focus=request.judge_focus,
+        demo_context=request.demo_context,
+        api_key=request.api_key,
+        base_url=request.base_url,
+        model=request.model,
+    )
+
+
+@app.post("/manager/report/latest", response_model=ManagerReportResponse)
+def manager_report_latest(request: ManagerReportRequest) -> ManagerReportResponse:
+    return build_manager_two_minute_report(
+        camera_id=request.camera_id,
+    )
+
+
+@app.post("/manager/chat", response_model=ManagerChatResponse)
+def manager_chat(request: ManagerChatRequest) -> ManagerChatResponse:
+    return build_manager_chat_answer(
+        question=request.question,
+        camera_id=request.camera_id,
+    )
+
+
+@app.post("/trust/privacy-proof", response_model=PrivacyProofResponse)
+def trust_privacy_proof(request: AnalyticsRequest) -> PrivacyProofResponse:
+    analyses = analyze_frames(request.frames)
+    return build_privacy_proof_layer(request.frames, analyses)
+
+
+@app.post("/trust/privacy-proof/challenge", response_model=PrivacyChallengeResponse)
+def trust_privacy_proof_challenge(request: PrivacyChallengeRequest) -> PrivacyChallengeResponse:
+    return privacy_challenge_store.create(request)
 
 
 if UI_DIR.exists():

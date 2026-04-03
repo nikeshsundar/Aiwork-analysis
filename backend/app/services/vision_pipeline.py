@@ -30,14 +30,15 @@ def mock_infer_frame(request: MockVisionRequest) -> CameraFrame:
             )
         )
 
+    # Legacy field kept for compatibility; map it to generic interruption detections.
     for index in range(request.no_helmet_count):
         detections.append(
             Detection(
-                category="no_helmet",
+                category="phone_use",
                 confidence=0.92,
                 bbox=_bbox_for_index(index, max(1, request.no_helmet_count)),
                 zone=request.site_area,
-                moving=True,
+                moving=False,
             )
         )
 
@@ -52,14 +53,15 @@ def mock_infer_frame(request: MockVisionRequest) -> CameraFrame:
             )
         )
 
+    # Legacy field kept for compatibility; treat these as interruption events in office mode.
     for index in range(request.restricted_entry_count):
         detections.append(
             Detection(
-                category="restricted_zone_entry",
+                category="phone_use",
                 confidence=0.88,
                 bbox=_bbox_for_index(index, max(1, request.restricted_entry_count)),
-                zone="restricted",
-                moving=True,
+                zone=request.site_area,
+                moving=False,
             )
         )
 

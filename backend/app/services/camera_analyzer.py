@@ -83,6 +83,36 @@ _CAMERA_TRACKERS: Dict[str, _CameraTrackerState] = {}
 _TRACKER_LOCK = Lock()
 
 
+def _safe_detect_multiscale(
+    cascade: cv2.CascadeClassifier,
+    source: np.ndarray,
+    scale_factor: float,
+    min_neighbors: int,
+    min_size: Tuple[int, int],
+) -> List[Tuple[int, int, int, int]]:
+    if cascade.empty() or source.size == 0:
+        return []
+
+    height, width = source.shape[:2]
+    if width < min_size[0] or height < min_size[1]:
+        return []
+
+    try:
+        raw = cascade.detectMultiScale(
+            source,
+            scaleFactor=scale_factor,
+            minNeighbors=min_neighbors,
+            minSize=min_size,
+        )
+    except cv2.error:
+        return []
+
+    if raw is None or len(raw) == 0:
+        return []
+
+    return [(int(x), int(y), int(w), int(h)) for (x, y, w, h) in raw]
+
+
 def _strip_data_url_prefix(image_base64: str) -> str:
     if "," in image_base64 and image_base64.strip().lower().startswith("data:image"):
         return image_base64.split(",", 1)[1]
@@ -209,11 +239,12 @@ def _face_body_fallback_detections(frame: np.ndarray, site_area: str) -> List[De
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
 
-    faces = _FACE_CASCADE.detectMultiScale(
+    faces = _safe_detect_multiscale(
+        _FACE_CASCADE,
         gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(28, 28),
+        scale_factor=1.1,
+        min_neighbors=5,
+        min_size=(28, 28),
     )
 
     detections: List[Detection] = []
@@ -792,11 +823,12 @@ def _detect_face_eye_state(
         return True, None, face_bbox
 
     upper_face = face_roi[: max(1, int(face_roi.shape[0] * 0.72)), :]
-    eyes = _EYE_CASCADE.detectMultiScale(
+    eyes = _safe_detect_multiscale(
+        _EYE_CASCADE,
         upper_face,
-        scaleFactor=1.1,
-        minNeighbors=3,
-        minSize=(8, 8),
+        scale_factor=1.1,
+        min_neighbors=3,
+        min_size=(8, 8),
     )
 
     eyes_open = len(eyes) >= 1
@@ -832,11 +864,12 @@ def _detect_primary_face(gray: np.ndarray) -> Optional[Tuple[int, int, int, int]
         source = cv2.flip(gray, 1) if mirrored else gray
         source_width = source.shape[1]
         for scale_factor, min_neighbors, min_size in search_profiles:
-            faces = cascade.detectMultiScale(
+            faces = _safe_detect_multiscale(
+                cascade,
                 source,
-                scaleFactor=scale_factor,
-                minNeighbors=min_neighbors,
-                minSize=min_size,
+                scale_factor=scale_factor,
+                min_neighbors=min_neighbors,
+                min_size=min_size,
             )
             if len(faces) == 0:
                 continue
@@ -923,11 +956,12 @@ def _eyes_closed_from_face_roi(face_gray: np.ndarray) -> Optional[bool]:
     if upper_face.size == 0:
         return None
 
-    eyes = _EYE_CASCADE.detectMultiScale(
+    eyes = _safe_detect_multiscale(
+        _EYE_CASCADE,
         upper_face,
-        scaleFactor=1.1,
-        minNeighbors=3,
-        minSize=(8, 8),
+        scale_factor=1.1,
+        min_neighbors=3,
+        min_size=(8, 8),
     )
     if len(eyes) >= 1:
         return False

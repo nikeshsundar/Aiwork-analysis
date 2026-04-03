@@ -87,6 +87,8 @@ def analyze_frame(frame: CameraFrame) -> FrameAnalysis:
     )
     phone_use = sum(1 for detection in frame.detections if detection.category == "phone_use")
 
+    workflow_interruptions = no_helmet + restricted_entries + phone_use
+
     expected_workers = frame.expected_workers if frame.expected_workers > 0 else max(worker_count, 1)
     utilization_pct = _pct(active_workers, expected_workers)
 
@@ -95,15 +97,13 @@ def analyze_frame(frame: CameraFrame) -> FrameAnalysis:
     else:
         progress_pct = 0.0
 
-    safety_violations = no_helmet + restricted_entries
+    safety_violations = workflow_interruptions
 
     alerts: List[str] = []
-    if no_helmet > 0:
-        alerts.append(f"{no_helmet} helmet compliance violations")
-    if restricted_entries > 0:
-        alerts.append(f"{restricted_entries} restricted zone intrusions")
-    if phone_use >= 3:
-        alerts.append("high distraction pattern detected")
+    if workflow_interruptions > 0:
+        alerts.append(f"{workflow_interruptions} workflow interruption events")
+    if phone_use >= 2:
+        alerts.append("high digital distraction pattern detected")
     if eye_idle_workers > 0:
         alerts.append(f"{eye_idle_workers} workers eyes closed for >10s (idle trigger)")
     if keyboard_break_workers > 0:
@@ -172,8 +172,11 @@ def build_report_insights(analyses: List[FrameAnalysis], summary: AnalysisSummar
     if summary.safety_violations > 0:
         insights.append(
             ReportInsight(
-                title="Safety Action Needed",
-                detail=f"{summary.safety_violations} safety events observed. Trigger toolbox talk and zone supervisor checks.",
+                title="Flow Risk Action Needed",
+                detail=(
+                    f"{summary.safety_violations} workflow interruption events observed. "
+                    "Trigger flow recovery actions and dependency unblocking."
+                ),
             )
         )
 
@@ -182,14 +185,17 @@ def build_report_insights(analyses: List[FrameAnalysis], summary: AnalysisSummar
         insights.append(
             ReportInsight(
                 title="Lowest Progress Camera",
-                detail=f"{weakest.camera_id} is at {weakest.progress_pct:.1f}% progress. Prioritize this zone in next shift.",
+                detail=(
+                    f"{weakest.camera_id} is at {weakest.progress_pct:.1f}% progress. "
+                    "Prioritize this team lane in the next sprint check."
+                ),
             )
         )
 
     insights.append(
         ReportInsight(
             title="Privacy Guardrail",
-            detail="Metrics are team-level only. No face recognition, no individual ranking, no automatic payroll actions.",
+            detail="Metrics are team-level only. No face recognition, no individual ranking, no automatic HR actions.",
         )
     )
 
@@ -326,10 +332,10 @@ def build_event_feed(analyses: List[FrameAnalysis], limit: int = 50) -> EventFee
                 EventFeedItem(
                     timestamp=analysis.timestamp,
                     camera_id=analysis.camera_id,
-                    severity="critical",
-                    event_type="safety",
-                    message=f"{analysis.safety_violations} safety violations detected",
-                    action="Dispatch supervisor and enforce PPE/restricted-zone protocol.",
+                    severity="critical" if analysis.safety_violations >= 2 else "warn",
+                    event_type="workflow-risk",
+                    message=f"{analysis.safety_violations} workflow interruption events detected",
+                    action="Trigger flow recovery copilot and dependency unblock check.",
                 )
             )
 
@@ -341,7 +347,7 @@ def build_event_feed(analyses: List[FrameAnalysis], limit: int = 50) -> EventFee
                     severity="warn",
                     event_type="productivity",
                     message=f"Low utilization at {analysis.utilization_pct:.1f}%",
-                    action="Rebalance crews or unblock workfront dependencies.",
+                    action="Rebalance workload or remove blockers in active sprint lanes.",
                 )
             )
 
@@ -353,7 +359,7 @@ def build_event_feed(analyses: List[FrameAnalysis], limit: int = 50) -> EventFee
                     severity="warn",
                     event_type="progress",
                     message=f"Progress lag at {analysis.progress_pct:.1f}%",
-                    action="Review daily plan and add short-interval recovery actions.",
+                    action="Review sprint plan and add short-cycle recovery actions.",
                 )
             )
 
@@ -369,7 +375,7 @@ def build_event_feed(analyses: List[FrameAnalysis], limit: int = 50) -> EventFee
                     severity="info",
                     event_type="milestone",
                     message="Strong performance window observed",
-                    action="Capture this crew setup as repeatable best practice.",
+                    action="Capture this team setup as repeatable engineering playbook.",
                 )
             )
 

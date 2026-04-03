@@ -9,6 +9,13 @@ const state = {
   cameraHealth: null,
   eventFeed: null,
   trends: null,
+  flowRecovery: null,
+  bottleneckGraph: null,
+  privacyProof: null,
+  managerReport: null,
+  managerChatHistory: [],
+  managerReportTimer: null,
+  managerApiFallbackNotified: false,
   trendChart: null,
   selectedTrendCameraId: null,
   cameraDevices: [],
@@ -28,6 +35,17 @@ const healthTableBody = document.getElementById("healthTableBody");
 const eventFeedList = document.getElementById("eventFeedList");
 const trendCameraSelect = document.getElementById("trendCameraSelect");
 const trendChartCanvas = document.getElementById("trendChartCanvas");
+const flowRecoveryBox = document.getElementById("flowRecoveryBox");
+const bottleneckGraphBox = document.getElementById("bottleneckGraphBox");
+const privacyProofBox = document.getElementById("privacyProofBox");
+const managerReportBox = document.getElementById("managerReportBox");
+const managerChatLog = document.getElementById("managerChatLog");
+const privacyChallengeReason = document.getElementById("privacyChallengeReason");
+const submitPrivacyChallengeBtn = document.getElementById("submitPrivacyChallengeBtn");
+const managerCameraIdInput = document.getElementById("managerCameraIdInput");
+const managerQuestionInput = document.getElementById("managerQuestionInput");
+const askManagerBtn = document.getElementById("askManagerBtn");
+const managerQuickAskButtons = Array.from(document.querySelectorAll(".quick-ask-btn"));
 
 const framesProcessed = document.getElementById("framesProcessed");
 const totalWorkers = document.getElementById("totalWorkers");
@@ -40,6 +58,7 @@ const loadSeedBtn = document.getElementById("loadSeedBtn");
 const runMockBtn = document.getElementById("runMockBtn");
 const analyzeBtn = document.getElementById("analyzeBtn");
 const advancedAnalyticsBtn = document.getElementById("advancedAnalyticsBtn");
+const managerReportBtn = document.getElementById("managerReportBtn");
 const reportBtn = document.getElementById("reportBtn");
 const startCameraBtn = document.getElementById("startCameraBtn");
 const stopCameraBtn = document.getElementById("stopCameraBtn");
@@ -85,7 +104,93 @@ function lockButtons(locked) {
   runMockBtn.disabled = locked;
   analyzeBtn.disabled = locked;
   advancedAnalyticsBtn.disabled = locked;
+  managerReportBtn.disabled = locked;
   reportBtn.disabled = locked;
+}
+
+function ensureManagerInputReady() {
+  if (managerCameraIdInput) {
+    managerCameraIdInput.disabled = false;
+    managerCameraIdInput.readOnly = false;
+  }
+  if (managerQuestionInput) {
+    managerQuestionInput.disabled = false;
+    managerQuestionInput.readOnly = false;
+    managerQuestionInput.setAttribute("tabindex", "0");
+    managerQuestionInput.removeAttribute("readonly");
+    managerQuestionInput.removeAttribute("disabled");
+    managerQuestionInput.style.pointerEvents = "auto";
+    managerQuestionInput.style.userSelect = "text";
+    managerQuestionInput.style.caretColor = "auto";
+  }
+  if (askManagerBtn) {
+    askManagerBtn.disabled = false;
+  }
+}
+
+async function postManagerApi(path, payload) {
+  const origins = [window.location.origin];
+  const fallbackOrigin = "http://127.0.0.1:8010";
+  if (!origins.includes(fallbackOrigin)) {
+    origins.push(fallbackOrigin);
+  }
+
+  let lastResponse = null;
+  let lastError = null;
+
+  for (let index = 0; index < origins.length; index += 1) {
+    const origin = origins[index];
+    try {
+      const response = await fetch(`${origin}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        if (origin !== window.location.origin && !state.managerApiFallbackNotified) {
+          state.managerApiFallbackNotified = true;
+          setStatus("Manager API auto-switched to port 8010 fallback.", "ok");
+        }
+        return response;
+      }
+
+      lastResponse = response;
+      const canRetryFallback = index < origins.length - 1 && (response.status === 404 || response.status === 405);
+      if (canRetryFallback) {
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (index === origins.length - 1) {
+        throw error;
+      }
+    }
+  }
+
+  if (lastResponse) {
+    return lastResponse;
+  }
+
+  throw lastError || new Error("manager API is unreachable");
+}
+
+function bindManagerQuickAsks() {
+  if (!managerQuickAskButtons.length) {
+    return;
+  }
+
+  managerQuickAskButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      ensureManagerInputReady();
+      const presetQuestion = button.dataset.question || "";
+      if (managerQuestionInput && presetQuestion) {
+        managerQuestionInput.value = presetQuestion;
+      }
+      void askManagerAssistant();
+    });
+  });
 }
 
 function lockCameraButtons(running) {
@@ -899,7 +1004,7 @@ function renderTrendTimelineForCamera(cameraId) {
           tension: 0.3,
         },
         {
-          label: "Safety Violations",
+          label: "Interruptions",
           data: safety,
           borderColor: "#c85127",
           backgroundColor: "rgba(200, 81, 39, 0.15)",
@@ -922,7 +1027,7 @@ function renderTrendTimelineForCamera(cameraId) {
           beginAtZero: true,
           position: "right",
           grid: { drawOnChartArea: false },
-          title: { display: true, text: "Safety" },
+          title: { display: true, text: "Interruptions" },
         },
       },
       plugins: {
@@ -930,6 +1035,172 @@ function renderTrendTimelineForCamera(cameraId) {
       },
     },
   });
+}
+
+function renderFlowRecovery(flowRecovery) {
+  if (!flowRecoveryBox) {
+    return;
+  }
+
+  if (!flowRecovery || !Array.isArray(flowRecovery.issues) || flowRecovery.issues.length === 0) {
+    flowRecoveryBox.innerHTML = '<p class="placeholder">Run advanced analytics to generate flow recovery guidance.</p>';
+    return;
+  }
+
+  flowRecoveryBox.innerHTML = `
+    <div class="novelty-header-row">
+      <strong>Projected Utilization Gain: ${Number(flowRecovery.projected_utilization_gain_pct || 0).toFixed(1)}%</strong>
+      <span>${escapeHtml(flowRecovery.top_recommendation || "")}</span>
+    </div>
+    ${flowRecovery.issues.slice(0, 4).map((issue) => `
+      <article class="novelty-card">
+        <div class="novelty-topline">
+          <strong>${escapeHtml(issue.camera_id)}</strong>
+          <span class="severity-pill ${escapeHtml(issue.severity)}">${escapeHtml(issue.severity)}</span>
+        </div>
+        <div class="novelty-topline">
+          <span>Blocked score: ${Number(issue.blocked_score || 0).toFixed(1)}%</span>
+          <span>Recovery ETA: ${Number(issue.estimated_recovery_minutes || 0)} min</span>
+        </div>
+        <div class="novelty-subtext">Cause: ${escapeHtml(issue.likely_cause || "")}</div>
+        <div class="novelty-subtext">Signals: ${(issue.signals || []).map((item) => escapeHtml(item)).join(" | ") || "none"}</div>
+        <ul class="novelty-actions">
+          ${(issue.recommended_actions || []).slice(0, 3).map((action) => `<li>${escapeHtml(action)}</li>`).join("")}
+        </ul>
+      </article>
+    `).join("")}
+  `;
+}
+
+function renderBottleneckGraph(graph) {
+  if (!bottleneckGraphBox) {
+    return;
+  }
+
+  if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) {
+    bottleneckGraphBox.innerHTML = '<p class="placeholder">Run advanced analytics to build the bottleneck graph.</p>';
+    return;
+  }
+
+  const cameraNodes = graph.nodes.filter((node) => node.node_type === "camera");
+  const strongEdges = (graph.edges || []).slice().sort((a, b) => Number(b.weight || 0) - Number(a.weight || 0)).slice(0, 6);
+
+  bottleneckGraphBox.innerHTML = `
+    <div class="novelty-header-row">
+      <strong>Bottleneck Index: ${Number(graph.bottleneck_index_pct || 0).toFixed(1)}%</strong>
+      <span>${cameraNodes.length} camera nodes, ${Number((graph.edges || []).length)} dependency edges</span>
+    </div>
+    <div class="bottleneck-grid">
+      ${cameraNodes.map((node) => `
+        <article class="novelty-card">
+          <div class="novelty-topline">
+            <strong>${escapeHtml(node.label)}</strong>
+            <span>Load ${Number(node.load_pct || 0).toFixed(1)}%</span>
+          </div>
+          <div class="bottleneck-bar-wrap">
+            <div class="bottleneck-bar" style="width: ${Math.max(0, Math.min(100, Number(node.load_pct || 0)))}%"></div>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+    <div class="novelty-subtext">Top dependency edges</div>
+    <ul class="novelty-actions">
+      ${strongEdges.map((edge) => `<li>${escapeHtml(edge.source)} -> ${escapeHtml(edge.target)} (${Number(edge.weight || 0).toFixed(1)}%): ${escapeHtml(edge.reason || "")}</li>`).join("")}
+    </ul>
+    <div class="novelty-subtext">Recommended interventions</div>
+    <ul class="novelty-actions">
+      ${(graph.interventions || []).slice(0, 4).map((item) => `<li>${escapeHtml(item.title)}: ${escapeHtml(item.detail)} (expected +${Number(item.expected_gain_pct || 0).toFixed(1)}%)</li>`).join("")}
+    </ul>
+  `;
+}
+
+function renderPrivacyProof(proof) {
+  if (!privacyProofBox) {
+    return;
+  }
+
+  if (!proof) {
+    privacyProofBox.innerHTML = '<p class="placeholder">Run advanced analytics to generate privacy proof and audit logs.</p>';
+    return;
+  }
+
+  privacyProofBox.innerHTML = `
+    <div class="novelty-header-row">
+      <strong>Privacy Score: ${Number(proof.privacy_score || 0).toFixed(1)}%</strong>
+      <span>Model Confidence: ${Number(proof.confidence_score || 0).toFixed(1)}% | Challenges: ${Number(proof.challenge_count || 0)}</span>
+    </div>
+    <div class="novelty-subtext">Retention: ${escapeHtml(proof.data_retention_policy || "")}</div>
+    <div class="novelty-subtext">Controls</div>
+    <ul class="novelty-actions">
+      ${(proof.controls || []).map((control) => `<li><strong>${escapeHtml(control.key)}</strong> [${escapeHtml(control.status)}]: ${escapeHtml(control.detail)}</li>`).join("")}
+    </ul>
+    <div class="novelty-subtext">Recent Audit Log</div>
+    <ul class="novelty-actions">
+      ${(proof.audit_log || []).slice(0, 6).map((event) => `<li>${escapeHtml(event.event_id)} (${escapeHtml(event.severity)}): ${escapeHtml(event.detail)}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function renderManagerReport(report) {
+  if (!managerReportBox) {
+    return;
+  }
+
+  if (!report) {
+    managerReportBox.innerHTML = '<p class="placeholder">Live 2-minute manager report will appear here when worker camera frames are analyzed.</p>';
+    return;
+  }
+
+  const start = report.window_start ? new Date(report.window_start) : null;
+  const end = report.window_end ? new Date(report.window_end) : null;
+  const windowLabel = start && end
+    ? `${start.toLocaleTimeString()} - ${end.toLocaleTimeString()}`
+    : "window unavailable";
+
+  managerReportBox.innerHTML = `
+    <div class="novelty-header-row">
+      <strong>2-Minute Worker Report</strong>
+      <span class="manager-report-window">${escapeHtml(report.camera_id || "")}: ${escapeHtml(windowLabel)}</span>
+    </div>
+    <div class="manager-report-lead">${escapeHtml(String(report.summary || ""))}</div>
+    <div class="manager-report-meta">Source mode: ${escapeHtml(String(report.source_mode || "local-fallback"))} | Utilization ${Number(report.avg_utilization_pct || 0).toFixed(1)}% | Progress ${Number(report.avg_progress_pct || 0).toFixed(1)}% | Interruptions ${Number(report.interruptions || 0)}</div>
+    <div class="novelty-subtext">Manager highlights</div>
+    <ul class="novelty-actions">
+      ${(report.highlights || []).map((item) => `<li>${escapeHtml(String(item))}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function renderManagerChatLog() {
+  if (!managerChatLog) {
+    return;
+  }
+
+  if (!state.managerChatHistory.length) {
+    managerChatLog.innerHTML = '<li class="placeholder">No manager chat yet.</li>';
+    return;
+  }
+
+  managerChatLog.innerHTML = state.managerChatHistory
+    .slice(-8)
+    .reverse()
+    .map((item) => {
+      const start = item.window_start ? new Date(item.window_start) : null;
+      const end = item.window_end ? new Date(item.window_end) : null;
+      const windowText = start && end
+        ? `${start.toLocaleTimeString()} - ${end.toLocaleTimeString()}`
+        : "window unavailable";
+
+      return `<li class="manager-chat-item">
+        <strong>Q: ${escapeHtml(item.question || "")}</strong>
+        <div>${escapeHtml(item.answer || "")}</div>
+        <div class="novelty-subtext">${escapeHtml(item.camera_id || "")} | ${escapeHtml(windowText)} | ${escapeHtml(item.source_mode || "local-fallback")}</div>
+        <ul class="novelty-actions">
+          ${(item.supporting_points || []).map((point) => `<li>${escapeHtml(String(point))}</li>`).join("")}
+        </ul>
+      </li>`;
+    })
+    .join("");
 }
 
 function captureFrameBase64() {
@@ -1010,7 +1281,7 @@ async function analyzeSingleCameraFrame() {
       ? "ready"
       : `${result.calibration_frames_remaining}f`;
     setStatus(
-      `Live ${result.frame.camera_id}: source ${result.data_source}, mock ${result.is_mock ? "yes" : "no"}, single-mode ${result.single_person_mode_applied ? "on" : "off"}, eye-idle ${result.eye_idle_workers}, hand-break ${result.hand_break_workers}, ${result.analysis.worker_count} workers, util ${result.analysis.utilization_pct.toFixed(1)}%, task progress ${result.analysis.progress_pct.toFixed(1)}%, activity ${result.activity_index_pct.toFixed(1)}%, mode ${result.data_mode}, evidence ${result.evidence_score.toFixed(1)}%, calibration ${calibrationLabel}, detector ${result.detector}, safety ${result.safety_detections}, classes ${classesLabel}, motion ${(result.motion_score * 100).toFixed(1)}%.`,
+      `Live ${result.frame.camera_id}: source ${result.data_source}, mock ${result.is_mock ? "yes" : "no"}, single-mode ${result.single_person_mode_applied ? "on" : "off"}, eye-idle ${result.eye_idle_workers}, hand-break ${result.hand_break_workers}, ${result.analysis.worker_count} workers, util ${result.analysis.utilization_pct.toFixed(1)}%, task progress ${result.analysis.progress_pct.toFixed(1)}%, activity ${result.activity_index_pct.toFixed(1)}%, mode ${result.data_mode}, evidence ${result.evidence_score.toFixed(1)}%, calibration ${calibrationLabel}, detector ${result.detector}, interruptions ${result.safety_detections}, classes ${classesLabel}, motion ${(result.motion_score * 100).toFixed(1)}%.`,
       tone,
     );
   } catch (error) {
@@ -1154,9 +1425,17 @@ async function startCameraAnalysis() {
     setStatus("Camera started. Capturing live frames for analysis...");
 
     await analyzeSingleCameraFrame();
+    await refreshManagerReport(true);
 
     const intervalSec = Math.max(1, Math.min(10, Number(captureIntervalInput.value || 3)));
     state.cameraTimer = setInterval(analyzeSingleCameraFrame, intervalSec * 1000);
+
+    if (state.managerReportTimer) {
+      clearInterval(state.managerReportTimer);
+    }
+    state.managerReportTimer = setInterval(() => {
+      void refreshManagerReport(true);
+    }, 120000);
   } catch (error) {
     setStatus(`Could not start camera: ${cameraErrorMessage(error)}`, "warn");
     setCameraDebug(`Start failed: ${cameraErrorMessage(error)}`);
@@ -1168,6 +1447,11 @@ function stopCameraAnalysis() {
   if (state.cameraTimer) {
     clearInterval(state.cameraTimer);
     state.cameraTimer = null;
+  }
+
+  if (state.managerReportTimer) {
+    clearInterval(state.managerReportTimer);
+    state.managerReportTimer = null;
   }
 
   if (state.cameraStream) {
@@ -1205,6 +1489,11 @@ async function loadSeedFrames() {
     state.cameraHealth = null;
     state.eventFeed = null;
     state.trends = null;
+    state.flowRecovery = null;
+    state.bottleneckGraph = null;
+    state.privacyProof = null;
+    state.managerReport = null;
+    state.managerChatHistory = [];
     state.selectedTrendCameraId = null;
     state.evidenceSnapshots = [];
     state.lastEvidenceAt = 0;
@@ -1216,6 +1505,11 @@ async function loadSeedFrames() {
     renderCameraHealth(null);
     renderEventFeed(null);
     renderTrendTimeline(null);
+    renderFlowRecovery(null);
+    renderBottleneckGraph(null);
+    renderPrivacyProof(null);
+    renderManagerReport(null);
+    renderManagerChatLog();
     updateEvidenceBadges(null);
     updateEyeIdleBadge(null);
     updateHandBreakBadge(null);
@@ -1270,8 +1564,9 @@ async function analyzeProgress() {
     return;
   }
 
-  setStatus("Analyzing worker progress and safety...");
+  setStatus("Analyzing worker progress and flow interruptions...");
   lockButtons(true);
+  let shouldRefreshAdvanced = false;
 
   try {
     const response = await fetch("/analysis/ingest", {
@@ -1291,13 +1586,18 @@ async function analyzeProgress() {
     renderAnalyses(state.analyses);
     renderSummary(state.summary);
     setStatus(
-      `Analysis complete. Avg utilization ${state.summary.avg_utilization_pct.toFixed(1)}%, safety events ${state.summary.safety_violations}.`,
+      `Analysis complete. Avg utilization ${state.summary.avg_utilization_pct.toFixed(1)}%, interruption events ${state.summary.safety_violations}.`,
       state.summary.safety_violations > 0 ? "warn" : "ok",
     );
+    shouldRefreshAdvanced = true;
   } catch (error) {
     setStatus(`Analysis failed: ${error.message}`, "warn");
   } finally {
     lockButtons(false);
+  }
+
+  if (shouldRefreshAdvanced) {
+    await runAdvancedAnalytics();
   }
 }
 
@@ -1337,7 +1637,7 @@ async function generateReport() {
 async function runAdvancedAnalytics() {
   if (!state.frames.length) {
     setStatus("No frames available. Load seed or start camera first.", "warn");
-    return;
+    return false;
   }
 
   setStatus("Running portfolio analytics, camera health, events, and trends...");
@@ -1345,7 +1645,7 @@ async function runAdvancedAnalytics() {
 
   try {
     const payload = JSON.stringify({ frames: state.frames });
-    const [portfolioRes, healthRes, eventsRes, trendsRes] = await Promise.all([
+    const [portfolioRes, healthRes, eventsRes, trendsRes, flowRes, bottleneckRes, privacyRes] = await Promise.all([
       fetch("/analytics/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1366,9 +1666,32 @@ async function runAdvancedAnalytics() {
         headers: { "Content-Type": "application/json" },
         body: payload,
       }),
+      fetch("/copilot/flow-recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }),
+      fetch("/copilot/bottleneck-graph", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }),
+      fetch("/trust/privacy-proof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }),
     ]);
 
-    if (!portfolioRes.ok || !healthRes.ok || !eventsRes.ok || !trendsRes.ok) {
+    if (
+      !portfolioRes.ok
+      || !healthRes.ok
+      || !eventsRes.ok
+      || !trendsRes.ok
+      || !flowRes.ok
+      || !bottleneckRes.ok
+      || !privacyRes.ok
+    ) {
       throw new Error("one or more advanced analytics requests failed");
     }
 
@@ -1376,23 +1699,166 @@ async function runAdvancedAnalytics() {
     state.cameraHealth = await healthRes.json();
     state.eventFeed = await eventsRes.json();
     state.trends = await trendsRes.json();
+    state.flowRecovery = await flowRes.json();
+    state.bottleneckGraph = await bottleneckRes.json();
+    state.privacyProof = await privacyRes.json();
 
     renderPortfolio(state.portfolio);
     renderCameraHealth(state.cameraHealth);
     renderEventFeed(state.eventFeed);
     renderTrendTimeline(state.trends);
+    renderFlowRecovery(state.flowRecovery);
+    renderBottleneckGraph(state.bottleneckGraph);
+    renderPrivacyProof(state.privacyProof);
 
     const trendSummary = state.trends.cameras
       .map((camera) => `${camera.camera_id}:${camera.direction}`)
       .join(", ");
     setStatus(
-      `Advanced analytics ready. Fleet score ${state.portfolio.fleet_score.toFixed(1)}. Trends ${trendSummary}.`,
+      `Advanced analytics ready. Fleet score ${state.portfolio.fleet_score.toFixed(1)}. Trends ${trendSummary}. Flow gain ${Number(state.flowRecovery.projected_utilization_gain_pct || 0).toFixed(1)}%, bottleneck index ${Number(state.bottleneckGraph.bottleneck_index_pct || 0).toFixed(1)}%, privacy ${Number(state.privacyProof.privacy_score || 0).toFixed(1)}%.`,
       "ok",
     );
+    return true;
   } catch (error) {
     setStatus(`Advanced analytics failed: ${error.message}`, "warn");
+    return false;
   } finally {
     lockButtons(false);
+  }
+}
+
+async function refreshManagerReport(silent = false) {
+  ensureManagerInputReady();
+
+  const cameraId = managerCameraIdInput && managerCameraIdInput.value
+    ? managerCameraIdInput.value.trim()
+    : "CAM-LIVE-01";
+
+  if (!cameraId) {
+    if (!silent) {
+      setStatus("Provide worker camera ID for manager report.", "warn");
+    }
+    return;
+  }
+
+  if (!silent) {
+    setStatus("Refreshing manager 2-minute report...");
+  }
+  lockButtons(true);
+
+  try {
+    const payload = {
+      camera_id: cameraId,
+    };
+
+    const response = await postManagerApi("/manager/report/latest", payload);
+
+    if (!response.ok) {
+      throw new Error(`manager report failed (${response.status})`);
+    }
+
+    state.managerReport = await response.json();
+    renderManagerReport(state.managerReport);
+
+    if (!silent) {
+      setStatus("Manager 2-minute report updated.", "ok");
+    }
+  } catch (error) {
+    if (!silent) {
+      setStatus(`Manager report failed: ${error.message}`, "warn");
+    }
+  } finally {
+    lockButtons(false);
+  }
+}
+
+async function askManagerAssistant() {
+  ensureManagerInputReady();
+
+  const question = managerQuestionInput && managerQuestionInput.value
+    ? managerQuestionInput.value.trim()
+    : "";
+  const cameraId = managerCameraIdInput && managerCameraIdInput.value
+    ? managerCameraIdInput.value.trim()
+    : "CAM-LIVE-01";
+
+  const safeQuestion = question && question.length >= 4
+    ? question
+    : "In the last 5 minutes, what did the worker do and where were the interruptions?";
+
+  setStatus("Manager assistant is analyzing requested time window...");
+  lockButtons(true);
+
+  try {
+    const payload = {
+      question: safeQuestion,
+      camera_id: cameraId,
+    };
+
+    const response = await postManagerApi("/manager/chat", payload);
+
+    if (!response.ok) {
+      throw new Error(`manager chat failed (${response.status})`);
+    }
+
+    const result = await response.json();
+    state.managerChatHistory.push({
+      question: safeQuestion,
+      ...result,
+    });
+    if (state.managerChatHistory.length > 40) {
+      state.managerChatHistory.splice(0, state.managerChatHistory.length - 40);
+    }
+
+    renderManagerChatLog();
+    if (managerQuestionInput) {
+      managerQuestionInput.value = "";
+    }
+
+    setStatus("Manager assistant response ready.", "ok");
+  } catch (error) {
+    setStatus(`Manager assistant failed: ${error.message}`, "warn");
+  } finally {
+    lockButtons(false);
+  }
+}
+
+async function submitPrivacyChallenge() {
+  const reason = privacyChallengeReason ? privacyChallengeReason.value.trim() : "";
+  if (!reason || reason.length < 3) {
+    setStatus("Provide a clearer challenge reason (minimum 3 characters).", "warn");
+    return;
+  }
+
+  const latestCamera = state.frames.length ? state.frames[state.frames.length - 1].camera_id : "CAM-LIVE-01";
+
+  try {
+    const response = await fetch("/trust/privacy-proof/challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        camera_id: latestCamera,
+        reason,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`challenge failed (${response.status})`);
+    }
+
+    const result = await response.json();
+    if (privacyChallengeReason) {
+      privacyChallengeReason.value = "";
+    }
+
+    const refreshed = await runAdvancedAnalytics();
+    if (refreshed) {
+      setStatus(`Privacy challenge ${result.challenge_id} accepted and privacy proof refreshed.`, "ok");
+    } else {
+      setStatus(`Privacy challenge ${result.challenge_id} accepted. Advanced analytics refresh failed.`, "warn");
+    }
+  } catch (error) {
+    setStatus(`Privacy challenge failed: ${error.message}`, "warn");
   }
 }
 
@@ -1400,6 +1866,9 @@ loadSeedBtn.addEventListener("click", loadSeedFrames);
 runMockBtn.addEventListener("click", runMockInference);
 analyzeBtn.addEventListener("click", analyzeProgress);
 advancedAnalyticsBtn.addEventListener("click", runAdvancedAnalytics);
+managerReportBtn.addEventListener("click", () => {
+  void refreshManagerReport(false);
+});
 reportBtn.addEventListener("click", generateReport);
 startCameraBtn.addEventListener("click", startCameraAnalysis);
 stopCameraBtn.addEventListener("click", stopCameraAnalysis);
@@ -1408,6 +1877,23 @@ resetLiveBtn.addEventListener("click", () => {
   void resetLiveBaseline(false);
 });
 analyzeUploadBtn.addEventListener("click", analyzeUploadedFrame);
+if (askManagerBtn) {
+  askManagerBtn.addEventListener("click", askManagerAssistant);
+}
+if (managerQuestionInput) {
+  managerQuestionInput.addEventListener("focus", ensureManagerInputReady);
+  managerQuestionInput.addEventListener("pointerdown", ensureManagerInputReady, true);
+  managerQuestionInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void askManagerAssistant();
+    }
+  });
+}
+bindManagerQuickAsks();
+if (submitPrivacyChallengeBtn) {
+  submitPrivacyChallengeBtn.addEventListener("click", submitPrivacyChallenge);
+}
 trendCameraSelect.addEventListener("change", () => {
   state.selectedTrendCameraId = trendCameraSelect.value;
   renderTrendTimelineForCamera(state.selectedTrendCameraId);
@@ -1436,10 +1922,17 @@ cameraVideo.addEventListener("loadedmetadata", () => {
 });
 
 setStatus("Ready. Start camera to run live evidence mode.");
+ensureManagerInputReady();
+setInterval(ensureManagerInputReady, 4000);
 updateLiveMovement(null, 0);
 updateEvidenceBadges(null);
 updateEyeIdleBadge(null);
 updateHandBreakBadge(null);
+renderFlowRecovery(null);
+renderBottleneckGraph(null);
+renderPrivacyProof(null);
+renderManagerReport(null);
+renderManagerChatLog();
 clearFaceTrackingScreen();
 renderEvidenceStrip();
 refreshCameraDevices();

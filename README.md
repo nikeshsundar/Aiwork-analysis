@@ -1,21 +1,21 @@
 # WorkSight Command Deck
 
-WorkSight is a privacy-safe worker progress analytics prototype for camera-based operations in construction, manufacturing, and office environments.
+WorkSight is a privacy-safe team productivity analytics prototype for camera-based software and IT workspaces.
 
 It focuses on:
 - Team-level productivity visibility
-- Safety compliance analytics
+- Workflow interruption analytics
 - Shift-level progress insights
 - Portfolio-level camera ranking and trend tracking
 - Camera health heartbeat and event intelligence
-- YOLO-capable safety class detection from live camera frames
+- YOLO-capable activity class detection from live camera frames
 - Live baseline calibration and evidence scoring from real camera stream
 - Strict single-person mode for selfie-style demos
 - Face and eye tracking with eye-closure timer
 - Eye-closure idle rule: if eyes remain closed for >10s, worker is marked idle
 - Live evidence strip snapshots with timestamps and provenance badges
 - Optional person YOLO model path for stronger worker localization
-- Timeline line charts for utilization/progress/safety trends
+- Timeline line charts for utilization/progress/interruption trends
 - No facial recognition and no individual payroll actions
 
 ## Features
@@ -23,13 +23,55 @@ It focuses on:
 - `POST /vision/mock-infer`: Generate realistic mock CV detections for a camera stream
 - `POST /vision/analyze-camera-frame`: Analyze a real webcam frame sent from browser
 - `POST /vision/reset-live-session`: Reset per-camera live calibration baseline
-- `POST /analysis/ingest`: Analyze frame batches for utilization, progress, and safety alerts
+- `POST /analysis/ingest`: Analyze frame batches for utilization, progress, and interruption alerts
 - `POST /analysis/report`: Build shift report insights from frame data
 - `POST /analytics/portfolio`: Cross-camera performance ranking and fleet score
 - `POST /analytics/camera-health`: Online/delayed/offline camera health and reliability
 - `POST /analytics/event-feed`: Time-ordered warning/critical/info event feed
-- `POST /analytics/trends`: Per-camera utilization/progress/safety trend points
+- `POST /analytics/trends`: Per-camera utilization/progress/interruption trend points
+- `POST /copilot/judge-wow`: Kimi-powered judge surprise one-liner, pitch, and live script
+- `POST /manager/report/latest`: Manager-facing rolling 2-minute worker report
+- `POST /manager/chat`: Manager chat query (supports time windows like `4:01 to 4:05`)
 - Built-in dashboard at `/` for one-click demo
+
+## Manager Assistant Key Setup (Backend Only)
+
+Manager endpoints no longer take API keys from browser input.
+
+Configure server-side environment variables once:
+
+- `OPENROUTER_API_KEY`: primary key used by manager assistant
+- `OPENROUTER_BASE_URL` (optional): default `https://openrouter.ai/api/v1`
+- `OPENROUTER_MODEL` (optional): default `qwen/qwen3.6-plus:free`
+
+Fallback variables still supported on backend:
+
+- `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_MODEL`
+- `NVCF_RUN_KEY` or `NVIDIA_API_KEY` for NVIDIA hosted calls
+
+## Kimi Judge Surprise Mode
+
+Set these optional environment variables for live Kimi output:
+
+- `KIMI_API_KEY`: your Moonshot/Kimi API key
+- `KIMI_MODEL`: model name (default `moonshot-v1-8k`)
+- `KIMI_BASE_URL`: API base URL (default `https://api.moonshot.cn/v1`)
+
+If Kimi is unavailable, WorkSight automatically falls back to a local judge brief so demo flow never breaks.
+
+NVIDIA NIM compatible setup:
+
+- Local NIM (from NVIDIA container): set `KIMI_BASE_URL=http://127.0.0.1:8000/v1`
+- Local NIM model name: set `KIMI_MODEL=moonshotai/kimi-k2.5`
+- Local NIM usually does not require an API key for localhost calls
+- Hosted NVIDIA API: set either `NVCF_RUN_KEY` or `NVIDIA_API_KEY`
+
+## Manager Monitoring MVP
+
+- Worker-side camera feeds are analyzed continuously.
+- Backend keeps a timeline of worker activity events.
+- Manager panel auto-refreshes 2-minute reports while live capture is running.
+- Manager can ask natural-language questions such as `at 4:01 to 4:05 what he did?`.
 
 Live camera responses now include explicit provenance fields:
 - `data_source: live-camera`
@@ -47,7 +89,7 @@ Task progress is intentionally conservative:
 - Use **Reset Live Baseline** before each judge run.
 - Keep **Mock** buttons only for fallback demo path, not the final live judging path.
 
-## YOLO Safety Model
+## YOLO Activity Model
 
 - Place ONNX model and class labels in [backend/app/models/README.md](backend/app/models/README.md) described location.
 - If model files are absent, worker detection falls back to HOG/face-body/contour plus eye-idle tracking and app remains functional.
@@ -57,7 +99,7 @@ Task progress is intentionally conservative:
 - `backend/app/main.py`: FastAPI routes and UI mounting
 - `backend/app/schemas.py`: Data contracts for frames, detections, and reports
 - `backend/app/services/vision_pipeline.py`: Mock computer-vision inference generator
-- `backend/app/services/progress_engine.py`: Progress/safety scoring and report insights
+- `backend/app/services/progress_engine.py`: Progress/interruption scoring and report insights
 - `backend/app/data/seed_data.json`: Demo frame data and mock inference requests
 - `backend/app/ui/`: Dashboard frontend
 

@@ -24,6 +24,7 @@
           <button id="runMockBtn" class="secondary">Run Mock Vision Inference (Demo Only)</button>
           <button id="analyzeBtn">Analyze Progress</button>
           <button id="advancedAnalyticsBtn">Refresh Advanced Analytics</button>
+          <button id="managerReportBtn">Refresh Manager Report</button>
           <button id="reportBtn" class="secondary">Generate Shift Report</button>
         </div>
 
@@ -50,7 +51,7 @@
             <strong id="avgProgress">-</strong>
           </div>
           <div class="metric">
-            <span class="metric-label">Safety Violations</span>
+            <span class="metric-label">Work Interruptions</span>
             <strong id="safetyViolations">-</strong>
           </div>
           <div class="metric">
@@ -165,7 +166,7 @@
                 <th>Workers</th>
                 <th>Utilization</th>
                 <th>Task Progress</th>
-                <th>Safety</th>
+                <th>Interruptions</th>
                 <th>Alerts</th>
               </tr>
             </thead>
@@ -227,6 +228,63 @@
         </div>
         <div class="trend-canvas-wrap">
           <canvas id="trendChartCanvas"></canvas>
+        </div>
+      </section>
+
+      <section class="panel manager-copilot-panel">
+        <h2>Manager Copilot (2-Minute Reports + Chat)</h2>
+        <div class="manager-config-grid">
+          <label>
+            Worker Camera ID
+            <input id="managerCameraIdInput" type="text" value="CAM-LIVE-01" />
+          </label>
+        </div>
+
+        <div id="managerReportBox" class="novelty-box">
+          <p class="placeholder">Live 2-minute manager report will appear here when worker camera frames are analyzed.</p>
+        </div>
+
+        <div class="manager-chat-row">
+          <input id="managerQuestionInput" type="text" placeholder="Ask: from 4:01 to 4:05 what did worker do?" />
+          <button id="askManagerBtn">Ask Manager Assistant</button>
+        </div>
+        <div class="manager-quick-asks">
+          <button class="secondary quick-ask-btn" data-question="In the last 5 minutes, what did the worker do and where were interruptions?">Last 5 min summary</button>
+          <button class="secondary quick-ask-btn" data-question="From 4:01 to 4:05 what did the worker do?">4:01 to 4:05</button>
+          <button class="secondary quick-ask-btn" data-question="When was the biggest interruption in the recent timeline?">Biggest interruption</button>
+        </div>
+        <ul id="managerChatLog" class="manager-chat-log">
+          <li class="placeholder">No manager chat yet.</li>
+        </ul>
+        <p class="manager-note">Reports are computed every 2 minutes from worker-side camera timeline and are enhanced by backend-managed AI settings.</p>
+        <p class="manager-note">If typing is blocked in embedded browser mode, use the quick ask buttons.</p>
+      </section>
+
+      <section class="panel flow-panel">
+        <h2>Flow Recovery Copilot</h2>
+        <div id="flowRecoveryBox" class="novelty-box">
+          <p class="placeholder">Run advanced analytics to generate flow recovery guidance.</p>
+        </div>
+      </section>
+
+      <section class="panel bottleneck-panel">
+        <h2>Team Bottleneck Graph</h2>
+        <div id="bottleneckGraphBox" class="novelty-box">
+          <p class="placeholder">Run advanced analytics to build the bottleneck graph.</p>
+        </div>
+      </section>
+
+      <section class="panel privacy-proof-panel">
+        <h2>Privacy-First Proof Layer</h2>
+        <div id="privacyProofBox" class="novelty-box">
+          <p class="placeholder">Run advanced analytics to generate privacy proof and audit logs.</p>
+        </div>
+        <div class="privacy-challenge-form">
+          <label>
+            Challenge Reason
+            <textarea id="privacyChallengeReason" rows="3" placeholder="Example: False idle detection while coding during review call."></textarea>
+          </label>
+          <button id="submitPrivacyChallengeBtn" class="secondary">Submit Privacy Challenge</button>
         </div>
       </section>
     </main>

@@ -64,8 +64,7 @@ def test_analyze_frame_counts_safety_violations() -> None:
     analysis = analyze_frame(frame)
 
     assert analysis.safety_violations == 2
-    assert any("helmet" in alert for alert in analysis.alerts)
-    assert any("restricted" in alert for alert in analysis.alerts)
+    assert any("workflow interruption" in alert for alert in analysis.alerts)
 
 
 def test_analyze_frame_marks_eye_closed_worker_as_idle() -> None:

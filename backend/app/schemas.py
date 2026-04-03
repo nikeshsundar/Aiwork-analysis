@@ -219,3 +219,135 @@ class CameraTrend(BaseModel):
 class TrendResponse(BaseModel):
     generated_at: datetime
     cameras: List[CameraTrend]
+
+
+class FlowRecoveryIssue(BaseModel):
+    camera_id: str
+    severity: Literal["low", "medium", "high"]
+    blocked_score: float = Field(..., ge=0, le=100)
+    likely_cause: str
+    signals: List[str] = Field(default_factory=list)
+    recommended_actions: List[str] = Field(default_factory=list)
+    estimated_recovery_minutes: int = Field(..., ge=0, le=240)
+
+
+class FlowRecoveryResponse(BaseModel):
+    generated_at: datetime
+    projected_utilization_gain_pct: float = Field(..., ge=0, le=100)
+    top_recommendation: str
+    issues: List[FlowRecoveryIssue] = Field(default_factory=list)
+
+
+class BottleneckNode(BaseModel):
+    node_id: str
+    label: str
+    node_type: Literal["camera", "queue", "meeting", "review"]
+    load_pct: float = Field(..., ge=0, le=100)
+
+
+class BottleneckEdge(BaseModel):
+    source: str
+    target: str
+    weight: float = Field(..., ge=0, le=100)
+    reason: str
+
+
+class BottleneckIntervention(BaseModel):
+    title: str
+    detail: str
+    expected_gain_pct: float = Field(..., ge=0, le=100)
+
+
+class BottleneckGraphResponse(BaseModel):
+    generated_at: datetime
+    bottleneck_index_pct: float = Field(..., ge=0, le=100)
+    nodes: List[BottleneckNode] = Field(default_factory=list)
+    edges: List[BottleneckEdge] = Field(default_factory=list)
+    interventions: List[BottleneckIntervention] = Field(default_factory=list)
+
+
+class PrivacyControl(BaseModel):
+    key: str
+    status: Literal["enabled", "disabled", "partial"]
+    detail: str
+
+
+class PrivacyAuditEvent(BaseModel):
+    event_id: str
+    timestamp: datetime
+    severity: Literal["info", "warn", "critical"]
+    detail: str
+
+
+class PrivacyProofResponse(BaseModel):
+    generated_at: datetime
+    privacy_score: float = Field(..., ge=0, le=100)
+    confidence_score: float = Field(..., ge=0, le=100)
+    data_retention_policy: str
+    controls: List[PrivacyControl] = Field(default_factory=list)
+    audit_log: List[PrivacyAuditEvent] = Field(default_factory=list)
+    challenge_count: int = Field(default=0, ge=0)
+
+
+class PrivacyChallengeRequest(BaseModel):
+    camera_id: str
+    reason: str = Field(..., min_length=3, max_length=400)
+
+
+class PrivacyChallengeResponse(BaseModel):
+    challenge_id: str
+    status: Literal["accepted", "rejected"]
+    message: str
+
+
+class JudgeWowRequest(BaseModel):
+    frames: List[CameraFrame]
+    api_key: Optional[str] = Field(default=None, min_length=10, max_length=200)
+    base_url: Optional[str] = Field(default=None, min_length=10, max_length=200)
+    model: Optional[str] = Field(default=None, min_length=3, max_length=80)
+    judge_focus: str = Field(default="impact", min_length=2, max_length=120)
+    demo_context: str = Field(default="software delivery floor", min_length=3, max_length=200)
+
+
+class JudgeWowResponse(BaseModel):
+    generated_at: datetime
+    provider: str
+    model: str
+    data_mode: Literal["live-kimi", "local-fallback"]
+    one_liner: str
+    pitch: str
+    wow_moments: List[str] = Field(default_factory=list)
+    live_script: List[str] = Field(default_factory=list)
+    risk_watchouts: List[str] = Field(default_factory=list)
+
+
+class ManagerReportRequest(BaseModel):
+    camera_id: str = Field(default="CAM-LIVE-01", min_length=3, max_length=64)
+
+
+class ManagerReportResponse(BaseModel):
+    generated_at: datetime
+    camera_id: str
+    window_start: datetime
+    window_end: datetime
+    source_mode: Literal["live-llm", "local-fallback"]
+    summary: str
+    highlights: List[str] = Field(default_factory=list)
+    avg_utilization_pct: float = Field(default=0, ge=0, le=100)
+    avg_progress_pct: float = Field(default=0, ge=0, le=100)
+    interruptions: int = Field(default=0, ge=0)
+
+
+class ManagerChatRequest(BaseModel):
+    question: str = Field(..., min_length=4, max_length=500)
+    camera_id: str = Field(default="CAM-LIVE-01", min_length=3, max_length=64)
+
+
+class ManagerChatResponse(BaseModel):
+    generated_at: datetime
+    camera_id: str
+    source_mode: Literal["live-llm", "local-fallback"]
+    answer: str
+    supporting_points: List[str] = Field(default_factory=list)
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
