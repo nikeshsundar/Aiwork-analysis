@@ -189,6 +189,30 @@ Configured by blueprint:
 - start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - health check: `/health`
 
+## Free Alternatives if Render Is Unstable
+
+This repo now includes a root `Dockerfile` for portable deploys.
+
+### Option A: Koyeb (recommended free alternative)
+
+1. Create a free Koyeb account and connect this GitHub repo.
+2. Create a Web Service from repository.
+3. Choose Dockerfile deployment (auto-detect root `Dockerfile`).
+4. Set environment variable `OPENROUTER_API_KEY`.
+5. Deploy.
+
+### Option B: Hugging Face Spaces (Docker)
+
+1. Create a new Space and select Docker SDK.
+2. Push this repo content to that Space repo.
+3. Add secret `OPENROUTER_API_KEY` in Space settings.
+4. Start Space and open the generated HTTPS URL.
+
+Notes:
+
+- Free tiers can sleep on inactivity and wake with delay.
+- For smoother live analysis on free tiers, use a 2-3 second capture interval.
+
 ## Judge Demo Script (Animative, 2-3 Min)
 
 1. Open with the "problem moment": managers usually guess status from fragmented updates.
